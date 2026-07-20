@@ -1,0 +1,205 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\DanceCourse;
+use App\Models\CourseLesson;
+use App\Services\LessonSchedule;
+use App\Models\SchoolLocation;
+use App\Models\DanceDiscipline;
+use App\Models\DanceLevel;
+use App\Models\Season;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class CourseController extends Controller
+{
+    public function index(): Response
+    {
+        $school = request()->user()->school;
+        $enrollments = $school->enrollments()->with(['course:id,title,day,time', 'user:id,name,email', 'invoice'])->latest()->get();
+        $students = $enrollments->groupBy('email')->map(function ($studentEnrollments) {
+            $latest = $studentEnrollments->first();
+            $accepted = $studentEnrollments->whereNotIn('status', ['waitlist', 'expired']);
+
+            return [
+                'id' => $latest->user_id ?: 'email-'.md5($latest->email),
+                'name' => trim($latest->first_name.' '.$latest->last_name),
+                'email' => $latest->email,
+                'phone' => $studentEnrollments->firstWhere('phone', '!=', null)?->phone,
+                'has_account' => (bool) $latest->user_id,
+                'enrollments_count' => $studentEnrollments->count(),
+                'accepted_count' => $accepted->count(),
+                'waitlist_count' => $studentEnrollments->where('status', 'waitlist')->count(),
+                'total_amount' => round((float) $accepted->sum('amount'), 2),
+                'courses' => $studentEnrollments->pluck('course.title')->filter()->unique()->values(),
+                'last_enrollment_at' => $latest->created_at,
+            ];
+        })->values();
+
+        return Inertia::render('Admin/Dashboard', [
+            'courses' => $school->courses()->with(['lessons', 'season'])->latest()->get(),
+            'seasons' => $school->seasons()->withCount('courses')->orderByDesc('start_date')->get(),
+            'enrollments' => $enrollments,
+            'students' => $students,
+            'discountRules' => $school->discountRules()->orderBy('course_count')->get(),
+            'paymentPlans' => $school->paymentPlans()->latest()->get(),
+            'trialRequests' => $school->trialRequests()->with('course:id,title,day,time,location')->latest()->get(),
+            'invoices' => $school->invoices()->with(['payments', 'enrollment:id,first_name,last_name,email,dance_course_id', 'enrollment.course:id,title'])->latest()->get(),
+            'billingSettings' => [
+                ...$school->only('billing_name', 'billing_street', 'billing_house_number', 'billing_postal_code', 'billing_city', 'billing_country', 'billing_iban', 'invoice_prefix', 'invoice_due_days'),
+                'complete' => $school->hasCompleteBillingSettings(),
+            ],
+            'references' => [
+                'locations' => SchoolLocation::where('school_id', $school->id)->orderBy('name')->get(),
+                'disciplines' => DanceDiscipline::where('school_id', $school->id)->orderBy('name')->get(),
+                'levels' => DanceLevel::where('school_id', $school->id)->orderBy('name')->get(),
+                'categories' => \App\Models\PricingCategory::where('school_id', $school->id)->orderBy('name')->get(),
+            ],
+            'stats' => [
+                'courses' => $school->courses()->count(),
+                'active' => $school->courses()->where('is_active', true)->count(),
+                'places' => $school->courses()->sum('places'),
+                'enrollments' => $school->enrollments()->count(),
+                'students' => $students->count(),
+                'trials' => $school->trialRequests()->count(),
+            ],
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $data = $this->validateCourse($request);
+        $data = $this->storeCourseImage($request, $data);
+
+        DB::transaction(function () use ($request, $data) {
+            $course = $request->user()->school->courses()->create([
+                ...$data,
+                'places' => $data['capacity'],
+            ]);
+
+            LessonSchedule::generate($course);
+        });
+
+        return back()->with('success', 'Le cours a été créé et publié sur le catalogue.');
+    }
+
+    public function update(Request $request, DanceCourse $course): RedirectResponse
+    {
+        abort_unless($course->school_id === $request->user()->school_id, 404);
+        $data = $this->validateCourse($request);
+        $previousImage = $course->image;
+        $data = $this->storeCourseImage($request, $data);
+        $scheduleChanged = $course->day !== $data['day']
+            || $course->start_date->toDateString() !== $data['start_date']
+            || $course->end_date->toDateString() !== $data['end_date'];
+        $enrolled = max(0, $course->capacity - $course->places);
+
+        DB::transaction(function () use ($course, $data, $scheduleChanged, $enrolled) {
+            $course->update([...$data, 'places' => max(0, $data['capacity'] - $enrolled)]);
+
+            if ($scheduleChanged) {
+                $course->lessons()->delete();
+                LessonSchedule::generate($course->fresh());
+            }
+        });
+        if ($data['image'] !== $previousImage) $this->deleteUploadedImage($previousImage);
+
+        return back()->with('success', 'Le cours a été mis à jour.');
+    }
+
+    public function destroy(Request $request, DanceCourse $course): RedirectResponse
+    {
+        abort_unless($course->school_id === $request->user()->school_id, 404);
+        $image = $course->image;
+        $course->delete();
+        $this->deleteUploadedImage($image);
+
+        return back()->with('success', 'Le cours et ses données associées ont été supprimés.');
+    }
+
+    private function validateCourse(Request $request): array
+    {
+        $schoolId = $request->user()->school_id;
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:120'],
+            'season_id' => ['required', Rule::exists('seasons', 'id')->where('school_id', $schoolId)],
+            'dance_discipline_id' => ['required', Rule::exists('dance_disciplines', 'id')->where('school_id', $schoolId)],
+            'dance_level_id' => ['required', Rule::exists('dance_levels', 'id')->where('school_id', $schoolId)],
+            'school_location_id' => ['required', Rule::exists('school_locations', 'id')->where('school_id', $schoolId)],
+            'day' => ['required', 'in:Lundi,Mardi,Mercredi,Jeudi,Vendredi,Samedi,Dimanche'],
+            'time' => ['required', 'string', 'max:40'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'teacher' => ['required', 'string', 'max:100'],
+            'description' => ['required', 'string', 'max:2000'],
+            'capacity' => ['required', 'integer', 'min:1', 'max:500'],
+            'price' => ['required', 'numeric', 'min:0', 'max:9999'],
+            'session_price' => ['required', 'numeric', 'min:0', 'max:99999'],
+            'trial_is_free' => ['sometimes', 'boolean'],
+            'trial_price' => ['nullable', 'required_if:trial_is_free,false', 'numeric', 'min:0.01', 'max:9999'],
+            'image' => ['nullable', 'string', 'max:2000', function (string $attribute, mixed $value, \Closure $fail) {
+                if ($value && ! Str::startsWith($value, ['http://', 'https://', '/storage/course-images/'])) $fail('Utilisez une URL valide ou téléversez une image.');
+            }],
+            'image_upload' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'accent' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'is_active' => ['required', 'boolean'],
+            'couple_mode' => ['required', 'boolean'],
+            'max_role_gap' => ['nullable', 'required_if:couple_mode,true', 'integer', 'min:0', 'max:100'],
+            'balance_after_count' => ['required', 'integer', 'min:0', 'max:500'],
+            'waitlist_invitation_hours' => ['nullable', 'integer', 'min:1', 'max:720'],
+        ]);
+
+        $data['waitlist_invitation_hours'] ??= 72;
+        $data['trial_is_free'] ??= true;
+        $data['trial_price'] = $data['trial_is_free'] ? 0 : $data['trial_price'];
+        if (! $request->hasFile('image_upload') && blank($data['image'] ?? null)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['image' => 'Ajoutez une URL ou téléversez une image.']);
+        }
+
+        $data['style'] = DanceDiscipline::find($data['dance_discipline_id'])->name;
+        $data['level'] = DanceLevel::find($data['dance_level_id'])->name;
+        $data['location'] = SchoolLocation::find($data['school_location_id'])->name;
+        $season = Season::findOrFail($data['season_id']);
+        if ($data['start_date'] < $season->start_date->toDateString() || $data['end_date'] > $season->end_date->toDateString()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'season_id' => 'Les dates du cours doivent être comprises dans les dates de la saison sélectionnée.',
+            ]);
+        }
+
+        return $data;
+    }
+
+    private function storeCourseImage(Request $request, array $data): array
+    {
+        unset($data['image_upload']);
+        if ($request->hasFile('image_upload')) {
+            $data['image'] = '/storage/'.$request->file('image_upload')->store('course-images', 'public');
+        }
+        return $data;
+    }
+
+    private function deleteUploadedImage(?string $image): void
+    {
+        if ($image && Str::startsWith($image, '/storage/course-images/')) {
+            Storage::disk('public')->delete(Str::after($image, '/storage/'));
+        }
+    }
+
+    public function destroyLesson(Request $request, DanceCourse $course, CourseLesson $lesson): RedirectResponse
+    {
+        abort_unless($course->school_id === $request->user()->school_id, 404);
+        abort_unless($lesson->dance_course_id === $course->id, 404);
+
+        $lesson->delete();
+
+        return back()->with('success', 'La leçon a été retirée du calendrier et du calcul tarifaire.');
+    }
+}
