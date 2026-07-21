@@ -229,16 +229,23 @@ class CourseController extends Controller
     {
         unset($data['image_upload']);
         if ($request->hasFile('image_upload')) {
-            $data['image'] = '/storage/'.$request->file('image_upload')->store('course-images', 'public');
+            $path = $request->file('image_upload')->store('course-images', 'public');
+            $data['image'] = Storage::disk('public')->url($path);
         }
         return $data;
     }
 
     private function deleteUploadedImage(?string $image): void
     {
-        if ($image && Str::startsWith($image, '/storage/course-images/')) {
+        if (! $image) return;
+
+        if (Str::startsWith($image, '/storage/course-images/')) {
             Storage::disk('public')->delete(Str::after($image, '/storage/'));
+            return;
         }
+
+        $path = ltrim((string) parse_url($image, PHP_URL_PATH), '/');
+        if (Str::startsWith($path, 'course-images/')) Storage::disk('public')->delete($path);
     }
 
     public function destroyLesson(Request $request, DanceCourse $course, CourseLesson $lesson): RedirectResponse

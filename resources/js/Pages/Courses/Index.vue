@@ -178,7 +178,6 @@ function submit() {
                             <img :src="course.image" :alt="course.title" class="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
                             <div class="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent"></div>
                             <span class="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold backdrop-blur">{{ course.level }}</span>
-                            <span v-if="course.couple_mode" class="absolute right-4 top-4 rounded-full bg-purple-600/90 px-3 py-1.5 text-xs font-bold text-white backdrop-blur">Lead / Follow</span>
                             <span class="absolute bottom-4 left-4 text-xs font-semibold uppercase tracking-wider text-white/80">avec {{ course.teacher }}</span>
                         </div>
                         <div class="p-5 sm:p-6">
