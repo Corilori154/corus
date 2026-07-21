@@ -35,6 +35,18 @@ const filteredStudents = computed(() => {
     return props.students.filter(student => `${student.name} ${student.email} ${student.phone || ''} ${student.courses.join(' ')}`.toLocaleLowerCase('fr').includes(term));
 });
 const logout = () => router.post('/admin/deconnexion');
+const currentSeason = () => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return props.seasons.find(season => season.is_active && season.start_date <= today && season.end_date >= today)
+        || props.seasons.find(season => season.is_active)
+        || null;
+};
+function applySeasonDates() {
+    const season = props.seasons.find(item => item.id === Number(form.season_id));
+    form.start_date = season?.start_date || '';
+    form.end_date = season?.end_date || '';
+}
 function setActiveView(view) {
     activeView.value = view;
     const url = new URL(window.location.href);
@@ -55,9 +67,15 @@ const removeLesson = (course, lesson) => {
 };
 
 function openCreate() {
+    const season = currentSeason();
     editingCourse.value = null;
     editingLessons.value = [];
-    form.defaults({ ...emptyCourse });
+    form.defaults({
+        ...emptyCourse,
+        season_id: season?.id || '',
+        start_date: season?.start_date || '',
+        end_date: season?.end_date || '',
+    });
     form.reset();
     form.clearErrors();
     imagePreview.value = null;
@@ -188,7 +206,7 @@ function selectCourseImage(event) {
                 <div class="mb-8 flex items-start justify-between"><div><p class="text-xs font-bold uppercase tracking-[.2em] text-coral">{{ editingCourse ? 'Modification' : 'Nouveau' }}</p><h2 class="mt-1 font-serif text-4xl">{{ editingCourse ? 'Modifier le cours' : 'Créer un cours' }}</h2><p class="mt-2 text-sm text-black/50">{{ editingCourse ? 'Les changements seront visibles sur le catalogue.' : 'Il sera immédiatement visible sur le catalogue.' }}</p></div><button @click="showForm = false" class="grid h-10 w-10 place-items-center rounded-full bg-black/5 text-xl">×</button></div>
                 <form @submit.prevent="submit" class="space-y-5">
                     <label class="block text-sm font-semibold">Nom du cours<input v-model="form.title" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal focus:border-coral" placeholder="Modern Jazz" /><span v-if="form.errors.title" class="mt-1 block text-xs text-coral">{{ form.errors.title }}</span></label>
-                    <label class="block text-sm font-semibold">Saison<select v-model="form.season_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option value="">Choisir une saison...</option><option v-for="season in seasons.filter(item => item.is_active || item.id === form.season_id)" :key="season.id" :value="season.id">{{ season.name }}</option></select><span v-if="form.errors.season_id" class="mt-1 block text-xs text-coral">{{ form.errors.season_id }}</span><span v-if="!seasons.length" class="mt-1 block text-xs text-amber-700">Créez d’abord une saison dans l’onglet Saisons.</span></label>
+                    <label class="block text-sm font-semibold">Saison<select v-model="form.season_id" @change="applySeasonDates" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option value="">Choisir une saison...</option><option v-for="season in seasons.filter(item => item.is_active || item.id === form.season_id)" :key="season.id" :value="season.id">{{ season.name }}</option></select><span v-if="form.errors.season_id" class="mt-1 block text-xs text-coral">{{ form.errors.season_id }}</span><span v-if="!seasons.length" class="mt-1 block text-xs text-amber-700">Créez d’abord une saison dans l’onglet Saisons.</span></label>
                     <div class="grid gap-4 sm:grid-cols-2"><label class="text-sm font-semibold">Discipline<select v-model="form.dance_discipline_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option value="">Choisir...</option><option v-for="item in references.disciplines" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><label class="text-sm font-semibold">Niveau<select v-model="form.dance_level_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option value="">Choisir...</option><option v-for="item in references.levels" :key="item.id" :value="item.id">{{ item.name }}</option></select></label></div>
                     <label class="block text-sm font-semibold">Professeur<input v-model="form.teacher" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal" placeholder="Prénom Nom" /></label>
                     <label class="block text-sm font-semibold">Lieu<select v-model="form.school_location_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option value="">Choisir...</option><option v-for="item in references.locations" :key="item.id" :value="item.id">{{ item.name }}</option></select><span v-if="form.errors.school_location_id" class="mt-1 block text-xs text-coral">{{ form.errors.school_location_id }}</span></label>
@@ -219,7 +237,12 @@ function selectCourseImage(event) {
                         </div>
                         <div v-else class="px-5 py-10 text-center text-sm text-black/40">Aucune leçon programmée pour ce cours.</div>
                     </section>
-                    <p v-if="Object.keys(form.errors).length" class="rounded-xl bg-red-50 p-3 text-sm text-red-600">Merci de vérifier les champs du formulaire.</p>
+                    <div v-if="Object.keys(form.errors).length" class="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700" role="alert">
+                        <strong>Le cours n’a pas pu être enregistré :</strong>
+                        <ul class="mt-2 list-disc space-y-1 pl-5">
+                            <li v-for="(message, field) in form.errors" :key="field">{{ message }}</li>
+                        </ul>
+                    </div>
                     <div class="flex gap-3 pt-3"><button type="button" @click="showForm = false" class="flex-1 rounded-full border border-black/10 py-3.5 font-bold">Annuler</button><button :disabled="form.processing" class="flex-1 rounded-full bg-ink py-3.5 font-bold text-white hover:bg-coral disabled:opacity-50">{{ form.processing ? 'Enregistrement…' : editingCourse ? 'Enregistrer' : 'Créer et publier' }}</button></div>
                 </form>
             </aside>
