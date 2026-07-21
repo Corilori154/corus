@@ -181,7 +181,7 @@ class CourseController extends Controller
             'category_prices' => ['nullable', 'array'],
             'category_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999'],
             'trial_is_free' => ['sometimes', 'boolean'],
-            'trial_price' => ['nullable', 'required_if:trial_is_free,false', 'numeric', 'min:0.01', 'max:9999'],
+            'trial_price' => [Rule::excludeIf($request->boolean('trial_is_free')), 'nullable', 'required_if:trial_is_free,false', 'numeric', 'min:0.01', 'max:9999'],
             'image' => ['nullable', 'string', 'max:2000', function (string $attribute, mixed $value, \Closure $fail) {
                 if ($value && ! Str::startsWith($value, ['http://', 'https://', '/storage/course-images/'])) $fail('Utilisez une URL valide ou téléversez une image.');
             }],

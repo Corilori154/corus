@@ -47,6 +47,8 @@ class AdminCourseTest extends TestCase
             'capacity' => 15,
             'price' => 29,
             'session_price' => 116,
+            'trial_is_free' => true,
+            'trial_price' => 0,
             'image' => 'https://example.com/dance.jpg',
             'accent' => '#ef6f7f',
             'is_active' => true,
@@ -61,6 +63,7 @@ class AdminCourseTest extends TestCase
             'season_id' => $season->id,
             'places' => 15,
             'is_active' => true,
+            'trial_price' => 0,
         ]);
         $course = DanceCourse::where('title', 'Modern Jazz')->firstOrFail();
         $this->assertCount(4, $course->lessons);
