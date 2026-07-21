@@ -55,7 +55,7 @@ class CourseCatalogTest extends TestCase
             'email' => 'camille@example.com',
             'phone' => '+41 79 123 45 67',
             'start_date' => '2026-09-01',
-        ])->assertRedirect()->assertSessionHas('success');
+        ])->assertRedirectContains('/facture/')->assertSessionHas('success');
     }
 
     public function test_enrollment_requires_valid_contact_details(): void
@@ -189,7 +189,7 @@ class CourseCatalogTest extends TestCase
                 'first_name' => ucfirst($role), 'last_name' => (string) $index,
                 'email' => "{$role}{$index}@example.com", 'dance_role' => $role,
                 'start_date' => '2026-09-01', 'lessons_count' => 1,
-                'base_amount' => 100, 'amount' => 100, 'status' => 'pending',
+                'base_amount' => 100, 'amount' => 100, 'status' => 'accepted',
             ]);
         }
 
@@ -220,13 +220,13 @@ class CourseCatalogTest extends TestCase
                 'first_name' => 'Follow', 'last_name' => (string) $index,
                 'email' => "threshold{$index}@example.com", 'dance_role' => 'follow',
                 'start_date' => '2026-09-01', 'lessons_count' => 1,
-                'base_amount' => 100, 'amount' => 100, 'status' => 'pending',
+                'base_amount' => 100, 'amount' => 100, 'status' => 'accepted',
             ]);
         }
 
         $payload = ['course_id' => $course->id, 'last_name' => 'Test', 'phone' => '+41 79 123 45 67', 'dance_role' => 'follow', 'start_date' => '2026-09-01'];
         $this->post("/ecole/{$school->slug}/inscriptions", [...$payload, 'first_name' => 'Sixième', 'email' => 'six@example.com'])->assertRedirect();
-        $this->assertDatabaseHas('enrollments', ['email' => 'six@example.com', 'status' => 'pending']);
+        $this->assertDatabaseHas('enrollments', ['email' => 'six@example.com', 'status' => 'accepted']);
 
         $this->post("/ecole/{$school->slug}/inscriptions", [...$payload, 'first_name' => 'Septième', 'email' => 'seven@example.com'])->assertRedirect();
         $this->assertDatabaseHas('enrollments', ['email' => 'seven@example.com', 'status' => 'waitlist']);

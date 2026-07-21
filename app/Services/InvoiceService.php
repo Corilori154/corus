@@ -15,9 +15,10 @@ class InvoiceService
     {
         $school = $enrollment->school;
         $count = max(1, (int) $enrollment->installment_count);
-        $totalCents = (int) round((float) $enrollment->amount * 100);
-        $baseCents = intdiv($totalCents, $count);
-        $remainder = $totalCents % $count;
+        $feeCents = (int) round((float) $enrollment->registration_fee_amount * 100);
+        $tuitionCents = max(0, (int) round((float) $enrollment->amount * 100) - $feeCents);
+        $baseCents = intdiv($tuitionCents, $count);
+        $remainder = $tuitionCents % $count;
         $today = CarbonImmutable::today();
         $plan = $enrollment->paymentPlan;
         $courseEnd = CarbonImmutable::parse($enrollment->course->end_date)->startOfDay();
@@ -36,7 +37,7 @@ class InvoiceService
                 'enrollment_id' => $enrollment->id,
                 'installment_number' => $index + 1,
                 'installment_count' => $count,
-                'amount' => ($baseCents + ($index < $remainder ? 1 : 0)) / 100,
+                'amount' => ($baseCents + ($index < $remainder ? 1 : 0) + ($index === 0 ? $feeCents : 0)) / 100,
                 'currency' => 'CHF', 'issued_at' => $today, 'due_at' => $dueAt,
             ]);
             $invoice->update(['number' => sprintf('%s-%s-%06d', strtoupper($school->invoice_prefix ?: 'FAC'), now()->format('Y'), $invoice->id)]);

@@ -58,6 +58,9 @@ class CourseController extends Controller
                 'complete' => $school->hasCompleteBillingSettings(),
             ],
             'administrators' => $school->users()->where('is_admin', true)->orderBy('name')->get(['id', 'name', 'email']),
+            'paymentReminderSettings' => $school->only('payment_reminders_enabled', 'payment_reminder_delay_days', 'payment_reminder_interval_days', 'payment_reminder_max_count', 'payment_reminder_fee'),
+            'termsAndConditions' => $school->terms_and_conditions,
+            'registrationFeeSettings' => $school->only('registration_fee_enabled', 'registration_fee_name', 'registration_fee_amount'),
             'references' => [
                 'locations' => SchoolLocation::where('school_id', $school->id)->orderBy('name')->get(),
                 'disciplines' => DanceDiscipline::where('school_id', $school->id)->orderBy('name')->get(),

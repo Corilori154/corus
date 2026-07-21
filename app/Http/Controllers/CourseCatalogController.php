@@ -13,12 +13,14 @@ use App\Notifications\StudentAccountCreated;
 use App\Notifications\InvoiceCreated;
 use App\Services\InvoiceService;
 use App\Services\WaitlistService;
+use App\Services\RegistrationFeeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,7 +30,7 @@ class CourseCatalogController extends Controller
     public function index(School $school): Response
     {
         return Inertia::render('Courses/Index', [
-            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent'),
+            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent', 'terms_and_conditions'),
             'courses' => $school->courses()
                 ->with(['lessons:id,dance_course_id,lesson_date', 'pricingCategories'])
                 ->where('is_active', true)
@@ -44,14 +46,14 @@ class CourseCatalogController extends Controller
         abort_unless($course->school_id === $school->id && $course->is_active, 404);
 
         return Inertia::render('Courses/Show', [
-            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent'),
+            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent', 'terms_and_conditions'),
             'course' => $course->load(['lessons:id,dance_course_id,lesson_date', 'pricingCategories']),
             'pricingCategories' => $course->pricingCategories,
             'paymentPlans' => PaymentPlan::where('school_id', $school->id)->where('is_active', true)->orderBy('installment_count')->get(),
         ]);
     }
 
-    public function store(Request $request, School $school): RedirectResponse
+    public function store(Request $request, School $school): \Symfony\Component\HttpFoundation\Response
     {
         $data = $request->validate([
             'course_id' => [
@@ -69,6 +71,9 @@ class CourseCatalogController extends Controller
             'dance_role' => ['nullable', 'in:lead,follow'],
             'pricing_category_id' => ['nullable', Rule::exists('pricing_categories', 'id')->where('school_id', $school->id)],
             'payment_plan_id' => ['nullable', Rule::exists('payment_plans', 'id')->where(fn ($query) => $query->where('school_id', $school->id)->where('is_active', true))],
+            'terms_accepted' => ['accepted'],
+        ], [
+            'terms_accepted.accepted' => 'Vous devez accepter les conditions générales pour vous inscrire.',
         ]);
 
         $course = $school->courses()->with('lessons')->where('is_active', true)->findOrFail($data['course_id']);
@@ -105,6 +110,7 @@ class CourseCatalogController extends Controller
         $temporaryPassword = Str::password(14);
 
         $result = DB::transaction(function () use ($school, $course, $data, $remainingLessons, $baseAmount, $category, $categoryDiscount, $paymentPlan, $temporaryPassword) {
+            $lockedSchool = School::whereKey($school->id)->lockForUpdate()->firstOrFail();
             if (Enrollment::where('dance_course_id', $course->id)->where('email', $data['email'])->exists()) {
                 throw ValidationException::withMessages([
                     'email' => 'Une inscription existe déjà avec cette adresse pour ce cours.',
@@ -122,7 +128,7 @@ class CourseCatalogController extends Controller
             );
 
             $lockedCourse = DanceCourse::whereKey($course->id)->lockForUpdate()->firstOrFail();
-            $status = $lockedCourse->places > 0 ? 'pending' : 'waitlist';
+            $status = $lockedCourse->places > 0 ? 'accepted' : 'waitlist';
             if ($status !== 'waitlist' && $lockedCourse->couple_mode) {
                 $balancedEnrollments = $lockedCourse->enrollments()
                     ->whereNotIn('status', ['waitlist', 'expired'])
@@ -141,6 +147,9 @@ class CourseCatalogController extends Controller
 
             $pricing = $this->multiCoursePricing($school, $course, $data['email'], $baseAmount, true);
             $paymentPricing = $this->paymentPlanPricing($pricing['amount'], $paymentPlan);
+            $registrationFee = $status === 'accepted' ? app(RegistrationFeeService::class)->amountFor($lockedSchool, $lockedCourse, $data['email']) : 0;
+            $finalAmount = round($paymentPricing['amount'] + $registrationFee, 2);
+            $installmentAmount = round($finalAmount / $paymentPricing['installment_count'], 2);
 
             $enrollment = $school->enrollments()->create([
                 'user_id' => $user->id,
@@ -162,9 +171,13 @@ class CourseCatalogController extends Controller
                 'discount_amount' => $pricing['discount_amount'],
                 'discount_percentage' => $pricing['discount_percentage'],
                 'payment_adjustment_amount' => $paymentPricing['payment_adjustment_amount'],
-                'amount' => $paymentPricing['amount'],
-                'installment_amount' => $paymentPricing['installment_amount'],
+                'amount' => $finalAmount,
+                'installment_amount' => $installmentAmount,
+                'registration_fee_name' => $registrationFee > 0 ? $lockedSchool->registration_fee_name : null,
+                'registration_fee_amount' => $registrationFee,
                 'status' => $status,
+                'terms_accepted_at' => now(),
+                'terms_content_hash' => hash('sha256', (string) $school->terms_and_conditions),
             ]);
 
             if ($status !== 'waitlist') {
@@ -178,6 +191,9 @@ class CourseCatalogController extends Controller
                 'created' => $user->wasRecentlyCreated,
                 ...$pricing,
                 ...$paymentPricing,
+                'amount' => $finalAmount,
+                'installment_amount' => $installmentAmount,
+                'registration_fee_amount' => $registrationFee,
                 'status' => $status,
                 'invoice' => $invoice,
                 'enrollment' => $enrollment,
@@ -207,9 +223,21 @@ class CourseCatalogController extends Controller
             ? ' L’équilibre Lead/Follow serait dépassé : vous avez été placé·e sur liste d’attente et ne serez pas facturé·e avant confirmation.'
             : " Montant à payer : {$formattedAmount} CHF pour {$remainingLessons} leçons restantes. Facture {$result['invoice']->number} générée.{$discountMessage}{$paymentMessage}";
 
-        $flashType = $result['status'] === 'waitlist' ? 'waitlist' : 'success';
+        $message = "Merci {$data['first_name']} ! Votre demande pour {$course->title} a été envoyée.{$statusMessage}{$accountMessage}";
 
-        return back()->with($flashType, "Merci {$data['first_name']} ! Votre demande pour {$course->title} a été envoyée.{$statusMessage}{$accountMessage}");
+        if ($result['status'] === 'waitlist') {
+            return back()->with('waitlist', $message);
+        }
+
+        $invoiceUrl = URL::temporarySignedRoute(
+            'invoices.public',
+            now()->addMonths(6),
+            ['invoice' => $result['invoice']],
+        );
+
+        $request->session()->flash('success', $message);
+
+        return Inertia::location($invoiceUrl);
     }
 
     public function quote(Request $request, School $school): JsonResponse
@@ -245,10 +273,17 @@ class CourseCatalogController extends Controller
         $categoryDiscount = 0;
 
         $multiCoursePricing = $this->multiCoursePricing($school, $course, $data['email'], $baseAmount);
+        $paymentPricing = $this->paymentPlanPricing($multiCoursePricing['amount'], $paymentPlan);
+        $registrationFee = app(RegistrationFeeService::class)->amountFor($school, $course, $data['email']);
+        $finalAmount = round($paymentPricing['amount'] + $registrationFee, 2);
 
         return response()->json([
             ...$multiCoursePricing,
-            ...$this->paymentPlanPricing($multiCoursePricing['amount'], $paymentPlan),
+            ...$paymentPricing,
+            'amount' => $finalAmount,
+            'installment_amount' => round($finalAmount / $paymentPricing['installment_count'], 2),
+            'registration_fee_amount' => $registrationFee,
+            'registration_fee_name' => $registrationFee > 0 ? $school->registration_fee_name : null,
             'base_amount' => $baseAmount,
             'list_amount' => $listAmount,
             'category_discount_amount' => $categoryDiscount,

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['school_id', 'enrollment_id', 'installment_number', 'installment_count', 'number', 'status', 'currency', 'amount', 'issued_at', 'due_at', 'paid_at'])]
+#[Fillable(['school_id', 'enrollment_id', 'installment_number', 'installment_count', 'number', 'status', 'currency', 'amount', 'issued_at', 'due_at', 'paid_at', 'reminder_count', 'last_reminder_at', 'reminder_fees_total'])]
 class Invoice extends Model
 {
     protected $appends = ['paid_amount', 'balance', 'payment_status'];
@@ -30,6 +30,6 @@ class Invoice extends Model
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'issued_at' => 'date', 'due_at' => 'date', 'paid_at' => 'datetime'];
+        return ['amount' => 'decimal:2', 'issued_at' => 'date', 'due_at' => 'date', 'paid_at' => 'datetime', 'last_reminder_at' => 'datetime', 'reminder_fees_total' => 'decimal:2'];
     }
 }

@@ -4,7 +4,7 @@ import { Head, router } from '@inertiajs/vue3';
 defineProps({ course: Object, trialRequests: Array, stats: Object });
 const money = value => Number(value || 0).toLocaleString('fr-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const date = value => value ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-CH') : '—';
-const statusLabel = status => ({ accepted: 'Acceptée', waitlist: 'Liste d’attente', invited: 'Invitation envoyée', expired: 'Expirée' }[status] || 'En traitement');
+const statusLabel = status => ({ accepted: 'Inscrit', waitlist: 'Liste d’attente', invited: 'Invitation envoyée', expired: 'Expirée' }[status] || 'En traitement');
 const statusClass = status => status === 'accepted' ? 'bg-green-50 text-green-700' : status === 'invited' ? 'bg-blue-50 text-blue-700' : status === 'waitlist' ? 'bg-purple-50 text-purple-700' : 'bg-black/5 text-black/45';
 const logout = () => router.post('/admin/deconnexion');
 </script>

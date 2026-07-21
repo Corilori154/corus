@@ -12,8 +12,11 @@ import TrialsTable from '../../Components/Admin/TrialsTable.vue';
 import DiscountRulesPanel from '../../Components/Admin/DiscountRulesPanel.vue';
 import ReferencesPanel from '../../Components/Admin/ReferencesPanel.vue';
 import AdministratorsPanel from '../../Components/Admin/AdministratorsPanel.vue';
+import PaymentReminderSettings from '../../Components/Admin/PaymentReminderSettings.vue';
+import TermsSettings from '../../Components/Admin/TermsSettings.vue';
+import RegistrationFeeSettings from '../../Components/Admin/RegistrationFeeSettings.vue';
 
-const props = defineProps({ courses: Array, seasons: Array, enrollments: Array, trialRequests: Array, students: Array, discountRules: Array, paymentPlans: Array, invoices: Array, billingSettings: Object, administrators: Array, references: Object, stats: Object });
+const props = defineProps({ courses: Array, seasons: Array, enrollments: Array, trialRequests: Array, students: Array, discountRules: Array, paymentPlans: Array, invoices: Array, billingSettings: Object, paymentReminderSettings: Object, registrationFeeSettings: Object, termsAndConditions: String, administrators: Array, references: Object, stats: Object });
 const page = usePage();
 const showForm = ref(false);
 const expandedCourse = ref(null);
@@ -195,7 +198,7 @@ function selectCourseImage(event) {
 
             
 
-            <ReferencesPanel v-else-if="activeView === 'settings'" :references="references" />
+            <div v-else-if="activeView === 'settings'"><TermsSettings :content="termsAndConditions" /><RegistrationFeeSettings :settings="registrationFeeSettings" /><PaymentReminderSettings :settings="paymentReminderSettings" /><ReferencesPanel :references="references" /></div>
 
             <AdministratorsPanel v-else-if="activeView === 'administrators'" :administrators="administrators" :current-user="page.props.auth.user" />
 

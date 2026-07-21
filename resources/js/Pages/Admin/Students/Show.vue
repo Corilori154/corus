@@ -5,7 +5,7 @@ defineProps({ student: Object, enrollments: Array, trialRequests: Array });
 const page = usePage();
 const money = value => Number(value || 0).toLocaleString('fr-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const date = value => value ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-CH') : '—';
-const statusLabel = status => status === 'waitlist' ? 'Liste d’attente' : status === 'invited' ? 'Invitation envoyée' : status === 'expired' ? 'Invitation expirée' : status === 'accepted' ? 'Acceptée' : 'En traitement';
+const statusLabel = status => status === 'waitlist' ? 'Liste d’attente' : status === 'invited' ? 'Invitation envoyée' : status === 'expired' ? 'Invitation expirée' : status === 'accepted' ? 'Inscrit' : 'En traitement';
 const logout = () => router.post('/admin/deconnexion');
 </script>
 

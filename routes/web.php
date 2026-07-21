@@ -11,6 +11,10 @@ use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\SeasonController;
 use App\Http\Controllers\Admin\AdministratorController;
+use App\Http\Controllers\Admin\EnrollmentController;
+use App\Http\Controllers\Admin\PaymentReminderSettingsController;
+use App\Http\Controllers\Admin\TermsSettingsController;
+use App\Http\Controllers\Admin\RegistrationFeeSettingsController;
 use App\Http\Controllers\SchoolRegistrationController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\WaitlistController;
@@ -46,6 +50,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/cours', [CourseController::class, 'store'])->name('courses.store');
     Route::put('/cours/{course}', [CourseController::class, 'update'])->name('courses.update');
     Route::delete('/cours/{course}', [CourseController::class, 'destroy'])->name('courses.destroy');
+    Route::delete('/inscriptions/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
     Route::post('/saisons', [SeasonController::class, 'store'])->name('seasons.store');
     Route::put('/saisons/{season}', [SeasonController::class, 'update'])->name('seasons.update');
     Route::delete('/saisons/{season}', [SeasonController::class, 'destroy'])->name('seasons.destroy');
@@ -56,6 +61,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/plans-paiement', [PaymentPlanController::class, 'store'])->name('payment-plans.store');
     Route::delete('/plans-paiement/{paymentPlan}', [PaymentPlanController::class, 'destroy'])->name('payment-plans.destroy');
     Route::put('/facturation', [BillingSettingsController::class, 'update'])->name('billing.update');
+    Route::put('/rappels-paiement', [PaymentReminderSettingsController::class, 'update'])->name('payment-reminders.update');
+    Route::put('/conditions-generales', [TermsSettingsController::class, 'update'])->name('terms.update');
+    Route::put('/frais-inscription', [RegistrationFeeSettingsController::class, 'update'])->name('registration-fees.update');
     Route::get('/factures/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::get('/factures/{invoice}/document', [InvoiceController::class, 'document'])->name('invoices.document');
     Route::patch('/factures/{invoice}/payer', [InvoiceController::class, 'markPaid'])->name('invoices.paid');
