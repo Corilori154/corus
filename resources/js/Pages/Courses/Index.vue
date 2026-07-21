@@ -2,7 +2,7 @@
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
-const props = defineProps({ courses: Array, school: Object, pricingCategories: Array, paymentPlans: Array });
+const props = defineProps({ courses: Array, school: Object, paymentPlans: Array });
 const page = usePage();
 const activeStyle = ref('Tous');
 const activeLevel = ref('Tous');
@@ -37,9 +37,9 @@ const localQuote = computed(() => {
     const lessons = selectedCourse.value.lessons || [];
     const remaining = lessons.filter(lesson => lesson.lesson_date >= form.start_date).length;
     const listAmount = lessons.length ? Number(selectedCourse.value.session_price) * remaining / lessons.length : 0;
-    const category = props.pricingCategories.find(item => item.id === Number(form.pricing_category_id));
-    const categoryDiscount = category ? listAmount * Number(category.discount_percentage) / 100 : 0;
-    const amount = listAmount - categoryDiscount;
+    const category = (selectedCourse.value.pricing_categories || []).find(item => item.id === Number(form.pricing_category_id));
+    const categoryDiscount = 0;
+    const amount = category && lessons.length ? Number(category.pivot.price) * remaining / lessons.length : listAmount;
     return { remaining, total: lessons.length, listAmount, categoryDiscount, categoryName: category?.name, baseAmount: amount, amount, discountAmount: 0, discountPercentage: 0, courseCount: 1 };
 });
 const priceQuote = computed(() => serverQuote.value || localQuote.value);
@@ -225,7 +225,7 @@ function submit() {
                     </div>
                     <label class="block text-sm font-semibold">Adresse e-mail<input v-model="form.email" type="email" autocomplete="email" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal focus:border-coral" placeholder="camille@exemple.fr" /><span v-if="form.errors.email" class="mt-1 block text-xs text-coral">{{ form.errors.email }}</span></label>
                     <label class="block text-sm font-semibold">Numéro de téléphone<input v-model="form.phone" type="tel" autocomplete="tel" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal focus:border-coral" placeholder="+41 79 123 45 67" /><span v-if="form.errors.phone" class="mt-1 block text-xs text-coral">{{ form.errors.phone }}</span></label>
-                    <label v-if="pricingCategories.length" class="block text-sm font-semibold">Catégorie tarifaire<select v-model="form.pricing_category_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal focus:border-coral"><option value="">Tarif standard</option><option v-for="category in pricingCategories" :key="category.id" :value="category.id">{{ category.name }} · −{{ Number(category.discount_percentage) }} %</option></select><span v-if="form.errors.pricing_category_id" class="mt-1 block text-xs text-coral">{{ form.errors.pricing_category_id }}</span></label>
+                    <label v-if="selectedCourse.pricing_categories?.length" class="block text-sm font-semibold">Catégorie tarifaire<select v-model="form.pricing_category_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal focus:border-coral"><option value="">Tarif standard · {{ Number(selectedCourse.session_price).toLocaleString('fr-CH') }} CHF</option><option v-for="category in selectedCourse.pricing_categories" :key="category.id" :value="category.id">{{ category.name }} · {{ Number(category.pivot.price).toLocaleString('fr-CH') }} CHF</option></select><span v-if="form.errors.pricing_category_id" class="mt-1 block text-xs text-coral">{{ form.errors.pricing_category_id }}</span></label>
                     <label v-if="paymentPlans.length" class="block text-sm font-semibold">Plan de paiement<select v-model="form.payment_plan_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal focus:border-coral"><option value="">Paiement en une fois</option><option v-for="plan in paymentPlans" :key="plan.id" :value="plan.id">{{ `${plan.name} · ${plan.installment_count} fois${Number(plan.adjustment_value) ? ` · ${plan.adjustment_direction === 'fee' ? '+' : '−'}${Number(plan.adjustment_value)}${plan.adjustment_mode === 'percentage' ? ' %' : ' CHF'}` : ''}` }}</option></select><span v-if="form.errors.payment_plan_id" class="mt-1 block text-xs text-coral">{{ form.errors.payment_plan_id }}</span></label>
                     <fieldset v-if="selectedCourse.couple_mode"><legend class="text-sm font-semibold">Votre rôle</legend><div class="mt-2 grid grid-cols-2 gap-3"><label class="cursor-pointer rounded-xl border p-4 text-center transition" :class="form.dance_role === 'lead' ? 'border-purple-500 bg-purple-50 text-purple-800' : 'border-black/10'"><input v-model="form.dance_role" type="radio" value="lead" class="sr-only" /><strong>Lead</strong><span class="mt-1 block text-xs opacity-55">Je guide</span></label><label class="cursor-pointer rounded-xl border p-4 text-center transition" :class="form.dance_role === 'follow' ? 'border-purple-500 bg-purple-50 text-purple-800' : 'border-black/10'"><input v-model="form.dance_role" type="radio" value="follow" class="sr-only" /><strong>Follow</strong><span class="mt-1 block text-xs opacity-55">Je suis guidé·e</span></label></div><span v-if="form.errors.dance_role" class="mt-1 block text-xs text-coral">{{ form.errors.dance_role }}</span></fieldset>
                     <label class="block text-sm font-semibold">Je souhaite commencer le<input v-model="form.start_date" type="date" :min="selectedCourse.start_date" :max="selectedCourse.end_date" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal focus:border-coral" /><span v-if="form.errors.start_date" class="mt-1 block text-xs text-coral">{{ form.errors.start_date }}</span></label>

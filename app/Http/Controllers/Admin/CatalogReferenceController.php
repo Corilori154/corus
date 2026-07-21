@@ -27,11 +27,9 @@ class CatalogReferenceController extends Controller
         $table = (new $model)->getTable();
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100', Rule::unique($table)->where('school_id', $request->user()->school_id)],
-            'discount_percentage' => [$type === 'categories' ? 'required' : 'nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $attributes = ['school_id' => $request->user()->school_id, 'name' => $data['name']];
-        if ($type === 'categories') $attributes['discount_percentage'] = $data['discount_percentage'];
         $model::create($attributes);
 
         return back()->with('success', 'L’élément a été ajouté.');

@@ -232,18 +232,19 @@ class CourseCatalogTest extends TestCase
         $this->assertDatabaseHas('enrollments', ['email' => 'seven@example.com', 'status' => 'waitlist']);
     }
 
-    public function test_pricing_category_discount_is_applied_to_quote_and_enrollment(): void
+    public function test_course_pricing_category_price_is_applied_to_quote_and_enrollment(): void
     {
         Notification::fake();
         $school = School::factory()->create();
-        $category = PricingCategory::create(['school_id' => $school->id, 'name' => 'Enfant', 'discount_percentage' => 20]);
+        $category = PricingCategory::create(['school_id' => $school->id, 'name' => 'Enfant']);
         $course = DanceCourse::factory()->for($school)->create(['session_price' => 100]);
+        $course->pricingCategories()->attach($category, ['price' => 80]);
         $course->lessons()->create(['lesson_date' => '2026-09-01']);
 
         $this->postJson("/ecole/{$school->slug}/devis", [
             'email' => 'enfant@example.com', 'course_id' => $course->id,
             'start_date' => '2026-09-01', 'pricing_category_id' => $category->id,
-        ])->assertOk()->assertJson(['list_amount' => 100, 'base_amount' => 80, 'category_discount_amount' => 20, 'amount' => 80]);
+        ])->assertOk()->assertJson(['list_amount' => 100, 'base_amount' => 80, 'category_discount_amount' => 0, 'amount' => 80]);
 
         $this->post("/ecole/{$school->slug}/inscriptions", [
             'course_id' => $course->id, 'first_name' => 'Petit', 'last_name' => 'Danseur',
@@ -253,7 +254,7 @@ class CourseCatalogTest extends TestCase
 
         $this->assertDatabaseHas('enrollments', [
             'email' => 'enfant@example.com', 'pricing_category_name' => 'Enfant',
-            'category_discount_amount' => 20, 'amount' => 80,
+            'category_discount_amount' => 0, 'amount' => 80,
         ]);
     }
 

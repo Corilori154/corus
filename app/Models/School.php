@@ -47,6 +47,11 @@ class School extends Model
         return $this->hasMany(PaymentPlan::class);
     }
 
+    public function pricingCategories(): HasMany
+    {
+        return $this->hasMany(PricingCategory::class);
+    }
+
     public function trialRequests(): HasMany
     {
         return $this->hasMany(TrialRequest::class);

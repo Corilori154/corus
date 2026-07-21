@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\BillingSettingsController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\SeasonController;
+use App\Http\Controllers\Admin\AdministratorController;
 use App\Http\Controllers\SchoolRegistrationController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\WaitlistController;
@@ -41,6 +42,7 @@ Route::post('/ecole/{school}/cours-essai', [CourseCatalogController::class, 'sto
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
     Route::get('/', [CourseController::class, 'index'])->name('dashboard');
     Route::get('/eleves/{student}', [StudentController::class, 'show'])->name('students.show');
+    Route::get('/cours/{course}', [CourseController::class, 'show'])->name('courses.show');
     Route::post('/cours', [CourseController::class, 'store'])->name('courses.store');
     Route::put('/cours/{course}', [CourseController::class, 'update'])->name('courses.update');
     Route::delete('/cours/{course}', [CourseController::class, 'destroy'])->name('courses.destroy');
@@ -61,4 +63,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/factures/{invoice}/envoyer', [InvoiceController::class, 'send'])->name('invoices.send');
     Route::delete('/cours/{course}/lecons/{lesson}', [CourseController::class, 'destroyLesson'])->name('lessons.destroy');
     Route::post('/deconnexion', [AuthController::class, 'destroy'])->name('logout');
+    Route::post('/administrateurs', [AdministratorController::class, 'store'])->name('administrators.store');
+    Route::delete('/administrateurs/{administrator}', [AdministratorController::class, 'destroy'])->name('administrators.destroy');
+    Route::put('/mon-compte', [AdministratorController::class, 'updateProfile'])->name('account.update');
+    Route::put('/mon-compte/mot-de-passe', [AdministratorController::class, 'updatePassword'])->name('account.password.update');
 });

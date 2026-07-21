@@ -2,8 +2,11 @@
 namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
-#[Fillable(['school_id', 'name', 'discount_percentage'])]
+#[Fillable(['school_id', 'name'])]
 class PricingCategory extends Model
 {
-    protected function casts(): array { return ['discount_percentage' => 'decimal:2']; }
+    public function courses(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(DanceCourse::class)->withPivot('price')->withTimestamps();
+    }
 }

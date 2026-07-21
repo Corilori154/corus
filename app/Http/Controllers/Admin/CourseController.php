@@ -45,7 +45,7 @@ class CourseController extends Controller
         })->values();
 
         return Inertia::render('Admin/Dashboard', [
-            'courses' => $school->courses()->with(['lessons', 'season'])->latest()->get(),
+            'courses' => $school->courses()->with(['lessons', 'season', 'pricingCategories'])->latest()->get(),
             'seasons' => $school->seasons()->withCount('courses')->orderByDesc('start_date')->get(),
             'enrollments' => $enrollments,
             'students' => $students,
@@ -57,6 +57,7 @@ class CourseController extends Controller
                 ...$school->only('billing_name', 'billing_street', 'billing_house_number', 'billing_postal_code', 'billing_city', 'billing_country', 'billing_iban', 'invoice_prefix', 'invoice_due_days'),
                 'complete' => $school->hasCompleteBillingSettings(),
             ],
+            'administrators' => $school->users()->where('is_admin', true)->orderBy('name')->get(['id', 'name', 'email']),
             'references' => [
                 'locations' => SchoolLocation::where('school_id', $school->id)->orderBy('name')->get(),
                 'disciplines' => DanceDiscipline::where('school_id', $school->id)->orderBy('name')->get(),
@@ -78,17 +79,48 @@ class CourseController extends Controller
     {
         $data = $this->validateCourse($request);
         $data = $this->storeCourseImage($request, $data);
+        $categoryPrices = $data['category_prices'] ?? [];
+        unset($data['category_prices']);
 
-        DB::transaction(function () use ($request, $data) {
+        DB::transaction(function () use ($request, $data, $categoryPrices) {
             $course = $request->user()->school->courses()->create([
                 ...$data,
                 'places' => $data['capacity'],
             ]);
 
             LessonSchedule::generate($course);
+            $this->syncCategoryPrices($course, $categoryPrices);
         });
 
         return back()->with('success', 'Le cours a été créé et publié sur le catalogue.');
+    }
+
+    public function show(Request $request, DanceCourse $course): Response
+    {
+        abort_unless($course->school_id === $request->user()->school_id, 404);
+
+        $course->load([
+            'season',
+            'lessons',
+            'enrollments' => fn ($query) => $query->with(['user:id,name,email', 'invoices'])->latest(),
+        ]);
+
+        $trials = $request->user()->school->trialRequests()
+            ->where('dance_course_id', $course->id)
+            ->latest()
+            ->get();
+        $confirmed = $course->enrollments->whereNotIn('status', ['waitlist', 'invited', 'expired']);
+
+        return Inertia::render('Admin/Courses/Show', [
+            'course' => $course,
+            'trialRequests' => $trials,
+            'stats' => [
+                'confirmed' => $confirmed->count(),
+                'waitlist' => $course->enrollments->whereIn('status', ['waitlist', 'invited'])->count(),
+                'trials' => $trials->count(),
+                'revenue' => round((float) $confirmed->sum('amount'), 2),
+            ],
+        ]);
     }
 
     public function update(Request $request, DanceCourse $course): RedirectResponse
@@ -97,13 +129,16 @@ class CourseController extends Controller
         $data = $this->validateCourse($request);
         $previousImage = $course->image;
         $data = $this->storeCourseImage($request, $data);
+        $categoryPrices = $data['category_prices'] ?? [];
+        unset($data['category_prices']);
         $scheduleChanged = $course->day !== $data['day']
             || $course->start_date->toDateString() !== $data['start_date']
             || $course->end_date->toDateString() !== $data['end_date'];
         $enrolled = max(0, $course->capacity - $course->places);
 
-        DB::transaction(function () use ($course, $data, $scheduleChanged, $enrolled) {
+        DB::transaction(function () use ($course, $data, $categoryPrices, $scheduleChanged, $enrolled) {
             $course->update([...$data, 'places' => max(0, $data['capacity'] - $enrolled)]);
+            $this->syncCategoryPrices($course, $categoryPrices);
 
             if ($scheduleChanged) {
                 $course->lessons()->delete();
@@ -143,6 +178,8 @@ class CourseController extends Controller
             'capacity' => ['required', 'integer', 'min:1', 'max:500'],
             'price' => ['required', 'numeric', 'min:0', 'max:9999'],
             'session_price' => ['required', 'numeric', 'min:0', 'max:99999'],
+            'category_prices' => ['nullable', 'array'],
+            'category_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999'],
             'trial_is_free' => ['sometimes', 'boolean'],
             'trial_price' => ['nullable', 'required_if:trial_is_free,false', 'numeric', 'min:0.01', 'max:9999'],
             'image' => ['nullable', 'string', 'max:2000', function (string $attribute, mixed $value, \Closure $fail) {
@@ -175,6 +212,17 @@ class CourseController extends Controller
         }
 
         return $data;
+    }
+
+    private function syncCategoryPrices(DanceCourse $course, array $prices): void
+    {
+        $validCategoryIds = $course->school->pricingCategories()->pluck('id')->map(fn ($id) => (string) $id);
+        $sync = collect($prices)
+            ->filter(fn ($price, $categoryId) => $price !== null && $price !== '' && $validCategoryIds->contains((string) $categoryId))
+            ->mapWithKeys(fn ($price, $categoryId) => [$categoryId => ['price' => $price]])
+            ->all();
+
+        $course->pricingCategories()->sync($sync);
     }
 
     private function storeCourseImage(Request $request, array $data): array

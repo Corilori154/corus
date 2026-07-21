@@ -11,26 +11,24 @@ import StudentsTable from '../../Components/Admin/StudentsTable.vue';
 import TrialsTable from '../../Components/Admin/TrialsTable.vue';
 import DiscountRulesPanel from '../../Components/Admin/DiscountRulesPanel.vue';
 import ReferencesPanel from '../../Components/Admin/ReferencesPanel.vue';
+import AdministratorsPanel from '../../Components/Admin/AdministratorsPanel.vue';
 
-const props = defineProps({ courses: Array, seasons: Array, enrollments: Array, trialRequests: Array, students: Array, discountRules: Array, paymentPlans: Array, invoices: Array, billingSettings: Object, references: Object, stats: Object });
+const props = defineProps({ courses: Array, seasons: Array, enrollments: Array, trialRequests: Array, students: Array, discountRules: Array, paymentPlans: Array, invoices: Array, billingSettings: Object, administrators: Array, references: Object, stats: Object });
 const page = usePage();
 const showForm = ref(false);
 const expandedCourse = ref(null);
 const editingCourse = ref(null);
+const editingLessons = ref([]);
 const imagePreview = ref(null);
-const adminViews = ['courses', 'seasons', 'enrollments', 'waitlist', 'trials', 'students', 'invoices', 'discounts', 'payments', 'settings'];
+const adminViews = ['courses', 'seasons', 'enrollments', 'waitlist', 'trials', 'students', 'invoices', 'discounts', 'payments', 'settings', 'administrators'];
 const requestedView = new URLSearchParams(window.location.search).get('section');
 const activeView = ref(adminViews.includes(requestedView) ? requestedView : 'courses');
 const studentSearch = ref('');
 const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-const emptyCourse = { title: '', season_id: '', dance_discipline_id: '', dance_level_id: '', school_location_id: '', day: 'Lundi', time: '', start_date: '', end_date: '', teacher: '', description: '', capacity: 12, price: 25, session_price: 750, trial_is_free: true, trial_price: 0, image: '', image_upload: null, accent: '#ef6f7f', is_active: true, couple_mode: false, max_role_gap: 2, balance_after_count: 0, waitlist_invitation_hours: 72 };
+const emptyCourse = { title: '', season_id: '', dance_discipline_id: '', dance_level_id: '', school_location_id: '', day: 'Lundi', time: '', start_date: '', end_date: '', teacher: '', description: '', capacity: 12, price: 25, session_price: 750, category_prices: {}, trial_is_free: true, trial_price: 0, image: '', image_upload: null, accent: '#ef6f7f', is_active: true, couple_mode: false, max_role_gap: 2, balance_after_count: 0, waitlist_invitation_hours: 72 };
 const form = useForm({ ...emptyCourse });
 const discountForm = useForm({ course_count: 2, percentage: 10 });
 const paymentPlanForm = useForm({ name: '', installment_count: 2, schedule_mode: 'evenly_spaced', adjustment_direction: 'fee', adjustment_mode: 'fixed', adjustment_value: 0 });
-const referenceForms = {
-    locations: useForm({ name: '', discount_percentage: 0 }), disciplines: useForm({ name: '', discount_percentage: 0 }),
-    levels: useForm({ name: '', discount_percentage: 0 }), categories: useForm({ name: '', discount_percentage: 0 }),
-};
 const filteredStudents = computed(() => {
     const term = studentSearch.value.trim().toLocaleLowerCase('fr');
     if (!term) return props.students;
@@ -45,12 +43,20 @@ function setActiveView(view) {
 }
 const removeLesson = (course, lesson) => {
     if (confirm(`Retirer la leçon du ${new Date(`${lesson.lesson_date}T12:00:00`).toLocaleDateString('fr-FR')} ?`)) {
-        router.delete(`/admin/cours/${course.id}/lecons/${lesson.id}`, { preserveScroll: true });
+        router.delete(`/admin/cours/${course.id}/lecons/${lesson.id}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                if (editingCourse.value?.id === course.id) {
+                    editingLessons.value = editingLessons.value.filter(item => item.id !== lesson.id);
+                }
+            },
+        });
     }
 };
 
 function openCreate() {
     editingCourse.value = null;
+    editingLessons.value = [];
     form.defaults({ ...emptyCourse });
     form.reset();
     form.clearErrors();
@@ -60,11 +66,14 @@ function openCreate() {
 
 function openEdit(course) {
     editingCourse.value = course;
+    editingLessons.value = [...course.lessons];
     form.defaults({
         title: course.title, season_id: course.season_id, dance_discipline_id: course.dance_discipline_id, dance_level_id: course.dance_level_id, school_location_id: course.school_location_id, day: course.day,
         time: course.time, start_date: course.start_date, end_date: course.end_date,
         teacher: course.teacher, description: course.description || '',
-        capacity: course.capacity, price: course.price, session_price: course.session_price, trial_is_free: course.trial_is_free, trial_price: course.trial_price,
+        capacity: course.capacity, price: course.price, session_price: course.session_price,
+        category_prices: Object.fromEntries((course.pricing_categories || []).map(category => [category.id, category.pivot.price])),
+        trial_is_free: course.trial_is_free, trial_price: course.trial_price,
         image: course.image, image_upload: null, accent: course.accent, is_active: course.is_active,
         couple_mode: course.couple_mode, max_role_gap: course.max_role_gap ?? 2,
         balance_after_count: course.balance_after_count ?? 0,
@@ -90,14 +99,6 @@ function deleteDiscount(rule) {
     if (confirm(`Supprimer le rabais de ${rule.percentage} % à partir de ${rule.course_count} cours ?`)) {
         router.delete(`/admin/rabais/${rule.id}`, { preserveScroll: true });
     }
-}
-
-function addReference(type) {
-    referenceForms[type].post(`/admin/referentiels/${type}`, { preserveScroll: true, onSuccess: () => referenceForms[type].reset() });
-}
-
-function deleteReference(type, item) {
-    if (confirm(`Supprimer « ${item.name} » ?`)) router.delete(`/admin/referentiels/${type}/${item.id}`, { preserveScroll: true });
 }
 
 function addPaymentPlan() {
@@ -152,7 +153,9 @@ function selectCourseImage(event) {
                 <div class="rounded-3xl bg-[#eed5d5] p-6"><p class="text-sm text-black/45">Inscriptions reçues</p><strong class="mt-3 block font-serif text-4xl">{{ stats.enrollments }}</strong></div>
             </div>
 
-            <nav aria-label="Navigation admin" class="mb-5 flex gap-2 overflow-x-auto pb-2 lg:fixed lg:bottom-0 lg:left-0 lg:top-20 lg:z-20 lg:mb-0 lg:w-64 lg:flex-col lg:overflow-y-auto lg:border-r lg:border-black/5 lg:bg-white lg:p-5 lg:pb-8 [&>button]:shrink-0 lg:[&>button]:w-full lg:[&>button]:rounded-xl lg:[&>button]:px-4 lg:[&>button]:py-3 lg:[&>button]:text-left"><button @click="setActiveView('courses')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'courses' ? 'bg-ink text-white' : 'bg-white text-black/55'">Cours</button><button @click="setActiveView('seasons')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'seasons' ? 'bg-ink text-white' : 'bg-white text-black/55'">Saisons <span class="ml-1 opacity-60">{{ seasons.length }}</span></button><button @click="setActiveView('enrollments')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'enrollments' ? 'bg-ink text-white' : 'bg-white text-black/55'">Inscriptions <span class="ml-1 opacity-60">{{ enrollments.length }}</span></button><button @click="setActiveView('waitlist')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'waitlist' ? 'bg-ink text-white' : 'bg-white text-black/55'">Liste d'attente <span class="ml-1 opacity-60">{{ enrollments.filter(item => ['waitlist', 'invited', 'expired'].includes(item.status)).length }}</span></button><button @click="setActiveView('trials')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'trials' ? 'bg-ink text-white' : 'bg-white text-black/55'">Cours d’essai <span class="ml-1 opacity-60">{{ trialRequests.length }}</span></button><button @click="setActiveView('students')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'students' ? 'bg-ink text-white' : 'bg-white text-black/55'">Élèves <span class="ml-1 opacity-60">{{ students.length }}</span></button><button @click="setActiveView('invoices')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'invoices' ? 'bg-ink text-white' : 'bg-white text-black/55'">Factures <span class="ml-1 opacity-60">{{ invoices.length }}</span></button><button @click="setActiveView('discounts')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'discounts' ? 'bg-ink text-white' : 'bg-white text-black/55'">Rabais multi-cours <span class="ml-1 opacity-60">{{ discountRules.length }}</span></button><button @click="setActiveView('payments')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'payments' ? 'bg-ink text-white' : 'bg-white text-black/55'">Plans de paiement <span class="ml-1 opacity-60">{{ paymentPlans.length }}</span></button><button @click="setActiveView('settings')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'settings' ? 'bg-ink text-white' : 'bg-white text-black/55'">Référentiels</button></nav>
+            <nav aria-label="Navigation admin" class="mb-5 flex gap-2 overflow-x-auto pb-2 lg:fixed lg:bottom-0 lg:left-0 lg:top-20 lg:z-20 lg:mb-0 lg:w-64 lg:flex-col lg:overflow-y-auto lg:border-r lg:border-black/5 lg:bg-white lg:p-5 lg:pb-8 [&>button]:shrink-0 lg:[&>button]:w-full lg:[&>button]:rounded-xl lg:[&>button]:px-4 lg:[&>button]:py-3 lg:[&>button]:text-left"><button @click="setActiveView('courses')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'courses' ? 'bg-ink text-white' : 'bg-white text-black/55'">Cours</button><button @click="setActiveView('seasons')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'seasons' ? 'bg-ink text-white' : 'bg-white text-black/55'">Saisons <span class="ml-1 opacity-60">{{ seasons.length }}</span></button><button @click="setActiveView('enrollments')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'enrollments' ? 'bg-ink text-white' : 'bg-white text-black/55'">Inscriptions <span class="ml-1 opacity-60">{{ enrollments.length }}</span></button><button @click="setActiveView('waitlist')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'waitlist' ? 'bg-ink text-white' : 'bg-white text-black/55'">Liste d'attente <span class="ml-1 opacity-60">{{ enrollments.filter(item => ['waitlist', 'invited', 'expired'].includes(item.status)).length }}</span></button><button @click="setActiveView('trials')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'trials' ? 'bg-ink text-white' : 'bg-white text-black/55'">Cours d’essai <span class="ml-1 opacity-60">{{ trialRequests.length }}</span></button><button @click="setActiveView('students')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'students' ? 'bg-ink text-white' : 'bg-white text-black/55'">Élèves <span class="ml-1 opacity-60">{{ students.length }}</span></button><button @click="setActiveView('invoices')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'invoices' ? 'bg-ink text-white' : 'bg-white text-black/55'">Factures <span class="ml-1 opacity-60">{{ invoices.length }}</span></button><button @click="setActiveView('discounts')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'discounts' ? 'bg-ink text-white' : 'bg-white text-black/55'">Rabais multi-cours <span class="ml-1 opacity-60">{{ discountRules.length }}</span></button><button @click="setActiveView('payments')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'payments' ? 'bg-ink text-white' : 'bg-white text-black/55'">Plans de paiement <span class="ml-1 opacity-60">{{ paymentPlans.length }}</span></button><button @click="setActiveView('settings')" class="rounded-full px-5 py-2.5 text-sm font-bold" :class="activeView === 'settings' ? 'bg-ink text-white' : 'bg-white text-black/55'">Paramétrages</button></nav>
+
+            <button @click="setActiveView('administrators')" class="mb-5 rounded-full px-5 py-2.5 text-sm font-bold lg:fixed lg:bottom-5 lg:left-5 lg:z-30 lg:w-56 lg:text-left" :class="activeView === 'administrators' ? 'bg-ink text-white' : 'bg-white text-black/55'">Administrateurs <span class="ml-1 opacity-60">{{ administrators.length }}</span></button>
 
             <CoursesTable v-if="activeView === 'courses'" :courses="courses" @edit="openEdit" @delete="deleteCourse" @remove-lesson="removeLesson" />
 
@@ -176,6 +179,8 @@ function selectCourseImage(event) {
 
             <ReferencesPanel v-else-if="activeView === 'settings'" :references="references" />
 
+            <AdministratorsPanel v-else-if="activeView === 'administrators'" :administrators="administrators" :current-user="page.props.auth.user" />
+
         </main>
 
         <div v-if="showForm" class="fixed inset-0 z-50 flex justify-end bg-black/45 backdrop-blur-sm" @click.self="showForm = false">
@@ -191,6 +196,7 @@ function selectCourseImage(event) {
                     <div class="grid gap-4 sm:grid-cols-2"><label class="text-sm font-semibold">Jour<select v-model="form.day" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option v-for="day in days" :key="day">{{ day }}</option></select></label><label class="text-sm font-semibold">Horaire<input v-model="form.time" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal" placeholder="18:30 – 20:00" /></label></div>
                     <div class="grid gap-4 sm:grid-cols-2"><label class="text-sm font-semibold">Début de la session<input v-model="form.start_date" type="date" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">Fin de la session<input v-model="form.end_date" type="date" :min="form.start_date" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal" /></label></div>
                     <div class="grid gap-4 sm:grid-cols-3"><label class="text-sm font-semibold">Capacité<input v-model="form.capacity" type="number" min="1" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">Prix unitaire (CHF)<input v-model="form.price" type="number" min="0" step="0.01" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">Prix session (CHF)<input v-model="form.session_price" type="number" min="0" step="0.01" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal" /></label></div>
+                    <section v-if="references.categories.length" class="rounded-2xl border border-black/10 bg-white p-4"><h3 class="font-serif text-xl">Prix par catégorie tarifaire</h3><p class="mt-1 text-xs text-black/45">Laissez vide pour ne pas proposer la catégorie sur ce cours.</p><div class="mt-4 grid gap-4 sm:grid-cols-2"><label v-for="category in references.categories" :key="category.id" class="text-sm font-semibold">{{ category.name }} (CHF)<input v-model="form.category_prices[category.id]" type="number" min="0" max="99999" step="0.01" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" placeholder="Non proposé" /><span v-if="form.errors[`category_prices.${category.id}`]" class="mt-1 block text-xs text-coral">{{ form.errors[`category_prices.${category.id}`] }}</span></label></div></section>
                     <div class="rounded-2xl border border-blue-100 bg-blue-50 p-4"><div class="flex items-center justify-between gap-4"><div><strong class="text-sm">Cours d’essai gratuit</strong><p class="mt-1 text-xs text-blue-800/60">Désactivez cette option pour définir un prix d’essai.</p></div><input v-model="form.trial_is_free" type="checkbox" class="h-5 w-5 accent-coral" /></div><label v-if="!form.trial_is_free" class="mt-4 block text-sm font-semibold">Prix du cours d’essai (CHF)<input v-model="form.trial_price" type="number" min="0.01" max="9999" step="0.01" class="mt-2 w-full rounded-xl border border-blue-100 bg-white px-4 py-3 font-normal" /><span v-if="form.errors.trial_price" class="mt-1 block text-xs text-red-600">{{ form.errors.trial_price }}</span></label></div>
                     <p class="rounded-xl bg-[#f3ece4] p-3 text-xs leading-relaxed text-black/55">{{ editingCourse ? 'Si le jour ou les dates changent, le calendrier sera régénéré.' : `Une leçon sera générée chaque ${form.day.toLowerCase()} entre les deux dates.` }} Vous pourrez ensuite retirer les vacances depuis le calendrier du cours.</p>
                     <div class="rounded-2xl border border-black/10 bg-white p-4"><p class="text-sm font-semibold">Image du cours</p><img v-if="imagePreview || form.image" :src="imagePreview || form.image" alt="Aperçu du cours" class="mt-3 h-40 w-full rounded-xl object-cover" /><div class="mt-3 grid gap-3 sm:grid-cols-2"><label class="cursor-pointer rounded-xl border border-dashed border-black/20 px-4 py-3 text-center text-sm font-bold hover:border-coral hover:text-coral">Téléverser une image<input type="file" accept="image/jpeg,image/png,image/webp" class="sr-only" @change="selectCourseImage" /></label><input v-model="form.image" type="text" class="rounded-xl border border-black/10 bg-white px-4 py-3 text-sm font-normal" placeholder="Ou coller une URL https://..." @input="!form.image_upload && (imagePreview = form.image)" /></div><p class="mt-2 text-xs text-black/40">JPG, PNG ou WebP · maximum 5 Mo.</p><span v-if="form.errors.image || form.errors.image_upload" class="mt-2 block text-xs text-coral">{{ form.errors.image || form.errors.image_upload }}</span></div>
@@ -200,6 +206,19 @@ function selectCourseImage(event) {
                     <label v-if="form.couple_mode" class="block rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold">Écart maximum accepté<input v-model="form.max_role_gap" type="number" min="0" max="100" class="mt-2 w-full rounded-xl border border-purple-100 bg-white px-4 py-3 font-normal" /><span class="mt-2 block text-xs font-normal text-purple-700">Exemple : avec un écart de 2, 2 Leads et 4 Follows sont acceptés. Le prochain Follow passe en liste d’attente.</span><span v-if="form.errors.max_role_gap" class="mt-1 block text-xs text-red-600">{{ form.errors.max_role_gap }}</span></label>
                     <label v-if="form.couple_mode" class="block rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold">Appliquer la règle après combien d’inscrits ?<input v-model="form.balance_after_count" type="number" min="0" :max="form.capacity" class="mt-2 w-full rounded-xl border border-purple-100 bg-white px-4 py-3 font-normal" /><span class="mt-2 block text-xs font-normal text-purple-700">Avec 6, les six premières inscriptions sont acceptées librement. L’équilibrage commence à la 7e. Utilisez 0 pour l’appliquer dès la première inscription.</span><span v-if="form.errors.balance_after_count" class="mt-1 block text-xs text-red-600">{{ form.errors.balance_after_count }}</span></label>
                     <label v-if="form.couple_mode" class="block rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold">Validité du bouton d’invitation (heures)<input v-model="form.waitlist_invitation_hours" type="number" min="1" max="720" class="mt-2 w-full rounded-xl border border-purple-100 bg-white px-4 py-3 font-normal" /><span class="mt-2 block text-xs font-normal text-purple-700">Après ce délai, l’invitation expire et le système contacte automatiquement la prochaine personne éligible.</span><span v-if="form.errors.waitlist_invitation_hours" class="mt-1 block text-xs text-red-600">{{ form.errors.waitlist_invitation_hours }}</span></label>
+                    <section v-if="editingCourse" class="overflow-hidden rounded-2xl border border-black/10 bg-white">
+                        <div class="border-b border-black/5 px-5 py-4">
+                            <h3 class="font-serif text-2xl">Calendrier des leçons</h3>
+                            <p class="mt-1 text-xs text-black/45">{{ editingLessons.length }} leçon{{ editingLessons.length > 1 ? 's' : '' }} programmée{{ editingLessons.length > 1 ? 's' : '' }}. Supprimez ici les vacances et les dates sans cours.</p>
+                        </div>
+                        <div v-if="editingLessons.length" class="grid gap-2 p-4 sm:grid-cols-2">
+                            <div v-for="(lesson, index) in editingLessons" :key="lesson.id" class="flex items-center justify-between gap-3 rounded-xl bg-[#f7f5f0] px-4 py-3">
+                                <div><span class="text-[10px] font-bold uppercase tracking-wider text-black/35">Leçon {{ index + 1 }}</span><strong class="mt-1 block text-sm">{{ new Date(`${lesson.lesson_date}T12:00:00`).toLocaleDateString('fr-CH', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) }}</strong></div>
+                                <button type="button" @click="removeLesson(editingCourse, lesson)" class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-red-50 text-lg font-bold text-red-500 transition hover:bg-red-500 hover:text-white" :title="`Supprimer la leçon du ${lesson.lesson_date}`">×</button>
+                            </div>
+                        </div>
+                        <div v-else class="px-5 py-10 text-center text-sm text-black/40">Aucune leçon programmée pour ce cours.</div>
+                    </section>
                     <p v-if="Object.keys(form.errors).length" class="rounded-xl bg-red-50 p-3 text-sm text-red-600">Merci de vérifier les champs du formulaire.</p>
                     <div class="flex gap-3 pt-3"><button type="button" @click="showForm = false" class="flex-1 rounded-full border border-black/10 py-3.5 font-bold">Annuler</button><button :disabled="form.processing" class="flex-1 rounded-full bg-ink py-3.5 font-bold text-white hover:bg-coral disabled:opacity-50">{{ form.processing ? 'Enregistrement…' : editingCourse ? 'Enregistrer' : 'Créer et publier' }}</button></div>
                 </form>

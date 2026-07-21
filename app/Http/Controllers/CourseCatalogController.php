@@ -30,12 +30,11 @@ class CourseCatalogController extends Controller
         return Inertia::render('Courses/Index', [
             'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent'),
             'courses' => $school->courses()
-                ->with('lessons:id,dance_course_id,lesson_date')
+                ->with(['lessons:id,dance_course_id,lesson_date', 'pricingCategories'])
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('day')
                 ->get(),
-            'pricingCategories' => PricingCategory::where('school_id', $school->id)->orderBy('name')->get(),
             'paymentPlans' => PaymentPlan::where('school_id', $school->id)->where('is_active', true)->orderBy('installment_count')->get(),
         ]);
     }
@@ -46,8 +45,8 @@ class CourseCatalogController extends Controller
 
         return Inertia::render('Courses/Show', [
             'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent'),
-            'course' => $course->load('lessons:id,dance_course_id,lesson_date'),
-            'pricingCategories' => PricingCategory::where('school_id', $school->id)->orderBy('name')->get(),
+            'course' => $course->load(['lessons:id,dance_course_id,lesson_date', 'pricingCategories']),
+            'pricingCategories' => $course->pricingCategories,
             'paymentPlans' => PaymentPlan::where('school_id', $school->id)->where('is_active', true)->orderBy('installment_count')->get(),
         ]);
     }
@@ -93,10 +92,15 @@ class CourseCatalogController extends Controller
         $listAmount = $totalLessons > 0
             ? round((float) $course->session_price * $remainingLessons / $totalLessons, 2)
             : 0;
-        $category = ! empty($data['pricing_category_id']) ? PricingCategory::find($data['pricing_category_id']) : null;
+        $category = ! empty($data['pricing_category_id']) ? $course->pricingCategories()->find($data['pricing_category_id']) : null;
+        if (! empty($data['pricing_category_id']) && ! $category) {
+            throw ValidationException::withMessages(['pricing_category_id' => 'Cette catégorie tarifaire n’est pas disponible pour ce cours.']);
+        }
         $paymentPlan = ! empty($data['payment_plan_id']) ? PaymentPlan::find($data['payment_plan_id']) : null;
-        $categoryDiscount = $category ? round($listAmount * (float) $category->discount_percentage / 100, 2) : 0;
-        $baseAmount = round($listAmount - $categoryDiscount, 2);
+        $baseAmount = $category && $totalLessons > 0
+            ? round((float) $category->pivot->price * $remainingLessons / $totalLessons, 2)
+            : $listAmount;
+        $categoryDiscount = 0;
 
         $temporaryPassword = Str::password(14);
 
@@ -230,10 +234,15 @@ class CourseCatalogController extends Controller
         $listAmount = $totalLessons > 0
             ? round((float) $course->session_price * $remainingLessons / $totalLessons, 2)
             : 0;
-        $category = ! empty($data['pricing_category_id']) ? PricingCategory::find($data['pricing_category_id']) : null;
+        $category = ! empty($data['pricing_category_id']) ? $course->pricingCategories()->find($data['pricing_category_id']) : null;
+        if (! empty($data['pricing_category_id']) && ! $category) {
+            throw ValidationException::withMessages(['pricing_category_id' => 'Cette catégorie tarifaire n’est pas disponible pour ce cours.']);
+        }
         $paymentPlan = ! empty($data['payment_plan_id']) ? PaymentPlan::find($data['payment_plan_id']) : null;
-        $categoryDiscount = $category ? round($listAmount * (float) $category->discount_percentage / 100, 2) : 0;
-        $baseAmount = round($listAmount - $categoryDiscount, 2);
+        $baseAmount = $category && $totalLessons > 0
+            ? round((float) $category->pivot->price * $remainingLessons / $totalLessons, 2)
+            : $listAmount;
+        $categoryDiscount = 0;
 
         $multiCoursePricing = $this->multiCoursePricing($school, $course, $data['email'], $baseAmount);
 
