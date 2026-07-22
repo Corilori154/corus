@@ -31,7 +31,7 @@ class StudentAccountCreated extends Notification
             ->line("Adresse e-mail : {$notifiable->email}")
             ->line("Mot de passe temporaire : {$this->password}")
             ->line('Conservez ces identifiants. Vous pourrez modifier votre mot de passe depuis votre espace client.')
-            ->action('Voir les cours de mon école', route('courses.index', $this->school))
+            ->action('Accéder à mon espace élève', route('students.login', $this->school))
             ->line('À bientôt !');
     }
 }

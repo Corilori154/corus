@@ -178,6 +178,9 @@ class CourseCatalogController extends Controller
                 'registration_fee_name' => $registrationFee > 0 ? $lockedSchool->registration_fee_name : null,
                 'registration_fee_amount' => $registrationFee,
                 'status' => $status,
+                'waitlist_position' => $status === 'waitlist'
+                    ? $lockedCourse->enrollments()->whereIn('status', ['waitlist', 'invited', 'expired'])->max('waitlist_position') + 1
+                    : null,
                 'terms_accepted_at' => now(),
                 'terms_content_hash' => hash('sha256', (string) $school->terms_and_conditions),
             ]);

@@ -54,4 +54,64 @@ class AdminEnrollmentTest extends TestCase
         $this->actingAs($admin)->delete("/admin/inscriptions/{$enrollment->id}")->assertNotFound();
         $this->assertDatabaseHas('enrollments', ['id' => $enrollment->id]);
     }
+
+    public function test_admin_can_change_waitlist_order_for_a_course(): void
+    {
+        $school = School::factory()->create();
+        $admin = User::factory()->create(['school_id' => $school->id, 'is_admin' => true]);
+        $course = DanceCourse::factory()->for($school)->create();
+        $first = $this->waitlisted($school, $course, 'first@example.ch', 1);
+        $second = $this->waitlisted($school, $course, 'second@example.ch', 2);
+        $third = $this->waitlisted($school, $course, 'third@example.ch', 3);
+
+        $this->actingAs($admin)
+            ->patch("/admin/inscriptions/{$third->id}/position-liste-attente", ['position' => 1])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, $third->fresh()->waitlist_position);
+        $this->assertSame(2, $first->fresh()->waitlist_position);
+        $this->assertSame(3, $second->fresh()->waitlist_position);
+    }
+
+    public function test_admin_can_force_accept_a_waitlisted_person_when_course_is_full(): void
+    {
+        $school = School::factory()->create(['registration_fee_enabled' => false]);
+        $admin = User::factory()->create(['school_id' => $school->id, 'is_admin' => true]);
+        $course = DanceCourse::factory()->for($school)->create(['capacity' => 1, 'places' => 0]);
+        $enrollment = $this->waitlisted($school, $course, 'forced@example.ch', 1);
+
+        $this->actingAs($admin)
+            ->post("/admin/inscriptions/{$enrollment->id}/forcer-acceptation")
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('enrollments', [
+            'id' => $enrollment->id,
+            'status' => 'accepted',
+            'waitlist_position' => null,
+        ]);
+        $this->assertDatabaseHas('invoices', ['enrollment_id' => $enrollment->id]);
+        $this->assertSame(0, $course->fresh()->places);
+    }
+
+    private function waitlisted(School $school, DanceCourse $course, string $email, int $position): Enrollment
+    {
+        return Enrollment::create([
+            'school_id' => $school->id,
+            'dance_course_id' => $course->id,
+            'first_name' => 'Élève',
+            'last_name' => (string) $position,
+            'email' => $email,
+            'phone' => '+41790000000',
+            'start_date' => '2026-09-01',
+            'lessons_count' => 10,
+            'base_amount' => 200,
+            'amount' => 200,
+            'installment_amount' => 200,
+            'installment_count' => 1,
+            'status' => 'waitlist',
+            'waitlist_position' => $position,
+        ]);
+    }
 }

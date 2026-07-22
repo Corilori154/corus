@@ -38,7 +38,7 @@ class WaitlistController extends Controller
 
             $fee = $fees->amountFor($school, $course, $locked->email, $locked->id);
             $amount = round((float) $locked->amount + $fee, 2);
-            $locked->update(['status' => 'accepted', 'amount' => $amount, 'installment_amount' => round($amount / max(1, $locked->installment_count), 2), 'registration_fee_name' => $fee > 0 ? $school->registration_fee_name : null, 'registration_fee_amount' => $fee, 'waitlist_token_hash' => null, 'waitlist_invited_at' => null, 'waitlist_invitation_expires_at' => null]);
+            $locked->update(['status' => 'accepted', 'waitlist_position' => null, 'amount' => $amount, 'installment_amount' => round($amount / max(1, $locked->installment_count), 2), 'registration_fee_name' => $fee > 0 ? $school->registration_fee_name : null, 'registration_fee_amount' => $fee, 'waitlist_token_hash' => null, 'waitlist_invited_at' => null, 'waitlist_invitation_expires_at' => null]);
             $invoice = $invoices->createFor($locked->fresh());
 
             return [$locked->fresh(['user', 'school', 'course']), $course->fresh(), $invoice];

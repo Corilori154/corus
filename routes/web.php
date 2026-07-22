@@ -20,6 +20,9 @@ use App\Http\Controllers\SchoolRegistrationController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\WaitlistController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Student\AccountController as StudentAccountController;
+use App\Http\Controllers\Student\AuthController as StudentAuthController;
+use App\Http\Controllers\Student\DashboardController as StudentDashboardController;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Route;
 
@@ -39,10 +42,18 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::get('/ecole/{school}', [CourseCatalogController::class, 'index'])->name('courses.index');
+Route::get('/ecole/{school}/connexion', [StudentAuthController::class, 'create'])->name('students.login');
+Route::post('/ecole/{school}/connexion', [StudentAuthController::class, 'store'])->middleware('guest')->name('students.login.store');
 Route::get('/ecole/{school}/cours/{course}', [CourseCatalogController::class, 'show'])->name('courses.show');
 Route::post('/ecole/{school}/inscriptions', [CourseCatalogController::class, 'store'])->name('courses.enroll');
 Route::post('/ecole/{school}/devis', [CourseCatalogController::class, 'quote'])->middleware('throttle:30,1')->name('courses.quote');
 Route::post('/ecole/{school}/cours-essai', [CourseCatalogController::class, 'storeTrial'])->middleware('throttle:20,1')->name('courses.trial');
+
+Route::prefix('ecole/{school}/mon-espace')->name('student.')->middleware(['auth', 'student'])->group(function () {
+    Route::get('/', StudentDashboardController::class)->name('dashboard');
+    Route::put('/mot-de-passe', [StudentAccountController::class, 'updatePassword'])->name('password.update');
+    Route::post('/deconnexion', [StudentAuthController::class, 'destroy'])->name('logout');
+});
 
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
     Route::get('/', [CourseController::class, 'index'])->name('dashboard');
@@ -52,6 +63,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('/cours/{course}', [CourseController::class, 'update'])->name('courses.update');
     Route::delete('/cours/{course}', [CourseController::class, 'destroy'])->name('courses.destroy');
     Route::delete('/inscriptions/{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
+    Route::patch('/inscriptions/{enrollment}/position-liste-attente', [EnrollmentController::class, 'reposition'])->name('enrollments.waitlist.reposition');
+    Route::post('/inscriptions/{enrollment}/forcer-acceptation', [EnrollmentController::class, 'forceAccept'])->name('enrollments.force-accept');
     Route::post('/saisons', [SeasonController::class, 'store'])->name('seasons.store');
     Route::put('/saisons/{season}', [SeasonController::class, 'update'])->name('seasons.update');
     Route::delete('/saisons/{season}', [SeasonController::class, 'destroy'])->name('seasons.destroy');

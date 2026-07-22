@@ -12,6 +12,12 @@ const selectedCourse = ref(null);
 const selectedTrial = ref(null);
 const waitlistResult = ref(null);
 const menuOpen = ref(false);
+const accountUrl = computed(() => {
+    const user = page.props.auth?.user;
+    if (!user) return `/ecole/${props.school.slug}/connexion`;
+    if (user.is_admin) return '/admin';
+    return `/ecole/${user.school.slug}/mon-espace`;
+});
 
 const styles = computed(() => ['Tous', ...new Set(props.courses.map(course => course.style))]);
 const levels = computed(() => ['Tous', ...new Set(props.courses.map(course => course.level))]);
@@ -139,12 +145,12 @@ function submit() {
                 </div>
 
                 <div class="hidden items-center gap-3 md:flex">
-                    <button class="rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-black/5">Se connecter</button>
+                    <a :href="accountUrl" class="rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-black/5">{{ page.props.auth?.user ? 'Mon espace' : 'Se connecter' }}</a>
                 </div>
                 <button class="grid h-10 w-10 place-items-center rounded-full border border-black/10 md:hidden" @click="menuOpen = !menuOpen" aria-label="Ouvrir le menu">☰</button>
             </nav>
             <div v-if="menuOpen" class="border-t border-black/5 px-5 py-4 md:hidden">
-                <div class="flex flex-col gap-3 text-sm font-medium"><a href="#cours">Les cours</a><button class="text-left">Se connecter</button></div>
+                <div class="flex flex-col gap-3 text-sm font-medium"><a href="#cours">Les cours</a><a :href="accountUrl" class="text-left">{{ page.props.auth?.user ? 'Mon espace' : 'Se connecter' }}</a></div>
             </div>
         </header>
 

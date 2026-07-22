@@ -29,10 +29,15 @@ class PasswordResetController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate(['token' => ['required'], 'email' => ['required', 'email'], 'password' => ['required', 'confirmed', Rules\Password::defaults()]]);
-        $status = Password::reset($data, function (User $user, string $password) {
+        $resetUser = null;
+        $status = Password::reset($data, function (User $user, string $password) use (&$resetUser) {
             $user->forceFill(['password' => $password])->setRememberToken(Str::random(60)); $user->save(); event(new PasswordReset($user));
+            $resetUser = $user;
         });
         if ($status !== Password::PASSWORD_RESET) return back()->withErrors(['email' => __($status)]);
+        if ($resetUser && ! $resetUser->is_admin && $resetUser->school) {
+            return redirect()->route('students.login', $resetUser->school)->with('success', 'Votre mot de passe a été modifié. Vous pouvez vous connecter.');
+        }
         return redirect()->route('login')->with('success', 'Votre mot de passe a été modifié. Vous pouvez vous connecter.');
     }
 }

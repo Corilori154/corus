@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DanceCourse;
+use App\Models\Enrollment;
 use App\Notifications\WaitlistInvitation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -29,7 +30,13 @@ class WaitlistService
             $leads = $active->where('dance_role', 'lead')->count();
             $follows = $active->where('dance_role', 'follow')->count();
 
-            $candidate = $lockedCourse->enrollments()->where('status', 'waitlist')->oldest()->get()->first(function ($item) use ($leads, $follows, $lockedCourse) {
+            $candidate = $lockedCourse->enrollments()
+                ->where('status', 'waitlist')
+                ->orderByRaw('waitlist_position IS NULL')
+                ->orderBy('waitlist_position')
+                ->orderBy('created_at')
+                ->get()
+                ->first(function ($item) use ($leads, $follows, $lockedCourse) {
                 $candidateLeads = $leads + ($item->dance_role === 'lead' ? 1 : 0);
                 $candidateFollows = $follows + ($item->dance_role === 'follow' ? 1 : 0);
                 return abs($candidateLeads - $candidateFollows) <= $lockedCourse->max_role_gap;
@@ -61,5 +68,20 @@ class WaitlistService
         $courses->each(fn (DanceCourse $course) => $this->inviteNext($course));
 
         return $courses->count();
+    }
+
+    public function resequence(DanceCourse $course): void
+    {
+        $course->enrollments()
+            ->whereIn('status', ['waitlist', 'invited', 'expired'])
+            ->orderByRaw('waitlist_position IS NULL')
+            ->orderBy('waitlist_position')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->values()
+            ->each(fn (Enrollment $enrollment, int $index) => $enrollment->update([
+                'waitlist_position' => $index + 1,
+            ]));
     }
 }
