@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\EnrollmentController;
 use App\Http\Controllers\Admin\PaymentReminderSettingsController;
 use App\Http\Controllers\Admin\TermsSettingsController;
 use App\Http\Controllers\Admin\RegistrationFeeSettingsController;
+use App\Http\Controllers\Admin\ContactButtonSettingsController;
 use App\Http\Controllers\SchoolRegistrationController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\WaitlistController;
@@ -64,6 +65,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('/rappels-paiement', [PaymentReminderSettingsController::class, 'update'])->name('payment-reminders.update');
     Route::put('/conditions-generales', [TermsSettingsController::class, 'update'])->name('terms.update');
     Route::put('/frais-inscription', [RegistrationFeeSettingsController::class, 'update'])->name('registration-fees.update');
+    Route::put('/bouton-contact', [ContactButtonSettingsController::class, 'update'])->name('contact-button.update');
     Route::get('/factures/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::get('/factures/{invoice}/document', [InvoiceController::class, 'document'])->name('invoices.document');
     Route::patch('/factures/{invoice}/payer', [InvoiceController::class, 'markPaid'])->name('invoices.paid');

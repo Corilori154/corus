@@ -30,7 +30,7 @@ class CourseCatalogController extends Controller
     public function index(School $school): Response
     {
         return Inertia::render('Courses/Index', [
-            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent', 'terms_and_conditions'),
+            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent', 'terms_and_conditions', 'contact_button_label', 'contact_button_url'),
             'courses' => $school->courses()
                 ->with(['lessons:id,dance_course_id,lesson_date', 'pricingCategories'])
                 ->where('is_active', true)
@@ -46,7 +46,7 @@ class CourseCatalogController extends Controller
         abort_unless($course->school_id === $school->id && $course->is_active, 404);
 
         return Inertia::render('Courses/Show', [
-            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent', 'terms_and_conditions'),
+            'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent', 'terms_and_conditions', 'contact_button_label', 'contact_button_url'),
             'course' => $course->load(['lessons:id,dance_course_id,lesson_date', 'pricingCategories']),
             'pricingCategories' => $course->pricingCategories,
             'paymentPlans' => PaymentPlan::where('school_id', $school->id)->where('is_active', true)->orderBy('installment_count')->get(),
@@ -72,6 +72,7 @@ class CourseCatalogController extends Controller
             'pricing_category_id' => ['nullable', Rule::exists('pricing_categories', 'id')->where('school_id', $school->id)],
             'payment_plan_id' => ['nullable', Rule::exists('payment_plans', 'id')->where(fn ($query) => $query->where('school_id', $school->id)->where('is_active', true))],
             'terms_accepted' => ['accepted'],
+            'comment' => ['nullable', 'string', 'max:2000'],
         ], [
             'terms_accepted.accepted' => 'Vous devez accepter les conditions générales pour vous inscrire.',
         ]);
@@ -163,6 +164,7 @@ class CourseCatalogController extends Controller
                 'last_name' => $data['last_name'],
                 'email' => $data['email'],
                 'phone' => $data['phone'],
+                'comment' => $data['comment'] ?? null,
                 'dance_role' => $data['dance_role'] ?? null,
                 'start_date' => $data['start_date'],
                 'lessons_count' => $remainingLessons,

@@ -61,7 +61,7 @@ class WaitlistAutomationTest extends TestCase
         Notification::fake();
         $school = School::factory()->create();
         $course = DanceCourse::factory()->for($school)->create([
-            'couple_mode' => true, 'max_role_gap' => 2, 'places' => 5, 'waitlist_invitation_hours' => 1,
+            'couple_mode' => true, 'max_role_gap' => 2, 'places' => 5, 'waitlist_invitation_hours' => 0.01,
         ]);
         foreach (['lead', 'lead', 'follow', 'follow', 'follow'] as $index => $role) {
             $this->enrollment($school, $course, "balance{$index}@example.ch", $role, 'pending');
@@ -72,7 +72,7 @@ class WaitlistAutomationTest extends TestCase
         app(WaitlistService::class)->inviteNext($course);
         $this->assertSame('invited', $first->fresh()->status);
 
-        $this->travel(61)->minutes();
+        $this->travel(37)->seconds();
         $this->artisan('waitlist:process')->assertSuccessful();
 
         $this->assertSame('expired', $first->fresh()->status);

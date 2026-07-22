@@ -15,8 +15,9 @@ import AdministratorsPanel from '../../Components/Admin/AdministratorsPanel.vue'
 import PaymentReminderSettings from '../../Components/Admin/PaymentReminderSettings.vue';
 import TermsSettings from '../../Components/Admin/TermsSettings.vue';
 import RegistrationFeeSettings from '../../Components/Admin/RegistrationFeeSettings.vue';
+import ContactButtonSettings from '../../Components/Admin/ContactButtonSettings.vue';
 
-const props = defineProps({ courses: Array, seasons: Array, enrollments: Array, trialRequests: Array, students: Array, discountRules: Array, paymentPlans: Array, invoices: Array, billingSettings: Object, paymentReminderSettings: Object, registrationFeeSettings: Object, termsAndConditions: String, administrators: Array, references: Object, stats: Object });
+const props = defineProps({ courses: Array, seasons: Array, enrollments: Array, trialRequests: Array, students: Array, discountRules: Array, paymentPlans: Array, invoices: Array, billingSettings: Object, paymentReminderSettings: Object, registrationFeeSettings: Object, contactButtonSettings: Object, termsAndConditions: String, administrators: Array, references: Object, stats: Object });
 const page = usePage();
 const showForm = ref(false);
 const expandedCourse = ref(null);
@@ -52,9 +53,11 @@ function applySeasonDates() {
 }
 function setActiveView(view) {
     activeView.value = view;
-    const url = new URL(window.location.href);
-    url.searchParams.set('section', view);
-    window.history.replaceState({}, '', url);
+    router.visit(`/admin?section=${encodeURIComponent(view)}`, {
+        preserveState: false,
+        preserveScroll: false,
+        replace: true,
+    });
 }
 const removeLesson = (course, lesson) => {
     if (confirm(`Retirer la leçon du ${new Date(`${lesson.lesson_date}T12:00:00`).toLocaleDateString('fr-FR')} ?`)) {
@@ -154,7 +157,7 @@ function selectCourseImage(event) {
     <div class="min-h-screen bg-[#f5f3ee]">
         <header class="border-b border-black/5 bg-white">
             <div class="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
-                <a href="/admin" class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-ink text-white">♪</span><span class="font-serif text-2xl font-semibold">tempo<span class="text-coral">.</span></span><span class="ml-2 rounded-full bg-[#f2eee8] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black/45">Admin</span></a>
+                <a href="/admin" class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-ink text-white">♪</span><span class="font-serif text-2xl font-semibold">Corus</span><span class="ml-2 rounded-full bg-[#f2eee8] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black/45">Admin</span></a>
                 <div class="flex items-center gap-3"><a :href="`/ecole/${page.props.auth.user.school.slug}`" class="hidden rounded-full px-4 py-2 text-sm font-semibold hover:bg-black/5 sm:block">Voir ma page ↗</a><button @click="logout" class="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold hover:border-coral hover:text-coral">Déconnexion</button></div>
             </div>
         </header>
@@ -198,7 +201,7 @@ function selectCourseImage(event) {
 
             
 
-            <div v-else-if="activeView === 'settings'"><TermsSettings :content="termsAndConditions" /><RegistrationFeeSettings :settings="registrationFeeSettings" /><PaymentReminderSettings :settings="paymentReminderSettings" /><ReferencesPanel :references="references" /></div>
+            <div v-else-if="activeView === 'settings'"><ContactButtonSettings :settings="contactButtonSettings" /><TermsSettings :content="termsAndConditions" /><RegistrationFeeSettings :settings="registrationFeeSettings" /><PaymentReminderSettings :settings="paymentReminderSettings" /><ReferencesPanel :references="references" /></div>
 
             <AdministratorsPanel v-else-if="activeView === 'administrators'" :administrators="administrators" :current-user="page.props.auth.user" />
 
@@ -226,7 +229,7 @@ function selectCourseImage(event) {
                     <label class="flex cursor-pointer items-center justify-between rounded-xl border border-black/10 bg-white p-4"><div><strong class="text-sm">Cours de couple</strong><p class="mt-1 text-xs text-black/45">Active l’équilibrage automatique entre Leads et Follows.</p></div><input v-model="form.couple_mode" type="checkbox" class="h-5 w-5 accent-coral" /></label>
                     <label v-if="form.couple_mode" class="block rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold">Écart maximum accepté<input v-model="form.max_role_gap" type="number" min="0" max="100" class="mt-2 w-full rounded-xl border border-purple-100 bg-white px-4 py-3 font-normal" /><span class="mt-2 block text-xs font-normal text-purple-700">Exemple : avec un écart de 2, 2 Leads et 4 Follows sont acceptés. Le prochain Follow passe en liste d’attente.</span><span v-if="form.errors.max_role_gap" class="mt-1 block text-xs text-red-600">{{ form.errors.max_role_gap }}</span></label>
                     <label v-if="form.couple_mode" class="block rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold">Appliquer la règle après combien d’inscrits ?<input v-model="form.balance_after_count" type="number" min="0" :max="form.capacity" class="mt-2 w-full rounded-xl border border-purple-100 bg-white px-4 py-3 font-normal" /><span class="mt-2 block text-xs font-normal text-purple-700">Avec 6, les six premières inscriptions sont acceptées librement. L’équilibrage commence à la 7e. Utilisez 0 pour l’appliquer dès la première inscription.</span><span v-if="form.errors.balance_after_count" class="mt-1 block text-xs text-red-600">{{ form.errors.balance_after_count }}</span></label>
-                    <label v-if="form.couple_mode" class="block rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold">Validité du bouton d’invitation (heures)<input v-model="form.waitlist_invitation_hours" type="number" min="1" max="720" class="mt-2 w-full rounded-xl border border-purple-100 bg-white px-4 py-3 font-normal" /><span class="mt-2 block text-xs font-normal text-purple-700">Après ce délai, l’invitation expire et le système contacte automatiquement la prochaine personne éligible.</span><span v-if="form.errors.waitlist_invitation_hours" class="mt-1 block text-xs text-red-600">{{ form.errors.waitlist_invitation_hours }}</span></label>
+                    <label v-if="form.couple_mode" class="block rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold">Validité du bouton d’invitation (heures)<input v-model="form.waitlist_invitation_hours" type="number" min="0.01" max="720" step="0.01" class="mt-2 w-full rounded-xl border border-purple-100 bg-white px-4 py-3 font-normal" /><span class="mt-2 block text-xs font-normal text-purple-700">Après ce délai, l’invitation expire et le système contacte automatiquement la prochaine personne éligible.</span><span v-if="form.errors.waitlist_invitation_hours" class="mt-1 block text-xs text-red-600">{{ form.errors.waitlist_invitation_hours }}</span></label>
                     <section v-if="editingCourse" class="overflow-hidden rounded-2xl border border-black/10 bg-white">
                         <div class="border-b border-black/5 px-5 py-4">
                             <h3 class="font-serif text-2xl">Calendrier des leçons</h3>

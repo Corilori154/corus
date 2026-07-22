@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#fbfaf6">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title inertia>Tempo — École de danse</title>
+    <title inertia>Corus — École de danse</title>
     @vite(['resources/js/app.js'])
     @inertiaHead
 </head>

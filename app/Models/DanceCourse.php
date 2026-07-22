@@ -45,6 +45,7 @@ class DanceCourse extends Model
             'price' => 'decimal:2',
             'session_price' => 'decimal:2',
             'trial_price' => 'decimal:2',
+            'waitlist_invitation_hours' => 'decimal:2',
             'start_date' => 'date:Y-m-d',
             'end_date' => 'date:Y-m-d',
             'is_active' => 'boolean',

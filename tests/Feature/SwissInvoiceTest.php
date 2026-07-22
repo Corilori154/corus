@@ -31,7 +31,7 @@ class SwissInvoiceTest extends TestCase
         $invoice = app(InvoiceService::class)->createFor($enrollment);
 
         $this->actingAs($admin)->put('/admin/facturation', [
-            'billing_name' => 'École Tempo', 'billing_street' => 'Rue du Lac', 'billing_house_number' => '12',
+            'billing_name' => 'École Corus', 'billing_street' => 'Rue du Lac', 'billing_house_number' => '12',
             'billing_postal_code' => '2501', 'billing_city' => 'Bienne', 'billing_country' => 'CH',
             'billing_iban' => 'CH9300762011623852957', 'invoice_prefix' => 'FAC', 'invoice_due_days' => 30,
         ])->assertRedirect();

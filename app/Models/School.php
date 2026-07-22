@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'email', 'phone', 'city', 'accent', 'is_active', 'billing_name', 'billing_street', 'billing_house_number', 'billing_postal_code', 'billing_city', 'billing_country', 'billing_iban', 'invoice_prefix', 'invoice_due_days', 'payment_reminders_enabled', 'payment_reminder_delay_days', 'payment_reminder_interval_days', 'payment_reminder_max_count', 'payment_reminder_fee', 'terms_and_conditions', 'registration_fee_enabled', 'registration_fee_name', 'registration_fee_amount'])]
+#[Fillable(['name', 'slug', 'email', 'phone', 'city', 'accent', 'is_active', 'billing_name', 'billing_street', 'billing_house_number', 'billing_postal_code', 'billing_city', 'billing_country', 'billing_iban', 'invoice_prefix', 'invoice_due_days', 'payment_reminders_enabled', 'payment_reminder_delay_days', 'payment_reminder_interval_days', 'payment_reminder_max_count', 'payment_reminder_fee', 'terms_and_conditions', 'registration_fee_enabled', 'registration_fee_name', 'registration_fee_amount', 'contact_button_label', 'contact_button_url'])]
 class School extends Model
 {
     use HasFactory;

@@ -61,6 +61,7 @@ class CourseController extends Controller
             'paymentReminderSettings' => $school->only('payment_reminders_enabled', 'payment_reminder_delay_days', 'payment_reminder_interval_days', 'payment_reminder_max_count', 'payment_reminder_fee'),
             'termsAndConditions' => $school->terms_and_conditions,
             'registrationFeeSettings' => $school->only('registration_fee_enabled', 'registration_fee_name', 'registration_fee_amount'),
+            'contactButtonSettings' => $school->only('contact_button_label', 'contact_button_url'),
             'references' => [
                 'locations' => SchoolLocation::where('school_id', $school->id)->orderBy('name')->get(),
                 'disciplines' => DanceDiscipline::where('school_id', $school->id)->orderBy('name')->get(),
@@ -194,7 +195,7 @@ class CourseController extends Controller
             'couple_mode' => ['required', 'boolean'],
             'max_role_gap' => ['nullable', 'required_if:couple_mode,true', 'integer', 'min:0', 'max:100'],
             'balance_after_count' => ['required', 'integer', 'min:0', 'max:500'],
-            'waitlist_invitation_hours' => ['nullable', 'integer', 'min:1', 'max:720'],
+            'waitlist_invitation_hours' => ['nullable', 'numeric', 'min:0.01', 'max:720'],
         ]);
 
         $data['waitlist_invitation_hours'] ??= 72;

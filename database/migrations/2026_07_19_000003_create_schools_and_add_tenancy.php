@@ -30,9 +30,9 @@ return new class extends Migration
         });
 
         $schoolId = DB::table('schools')->insertGetId([
-            'name' => 'Tempo Studio',
-            'slug' => 'tempo',
-            'email' => 'admin@tempo.test',
+            'name' => 'Corus Studio',
+            'slug' => 'corus',
+            'email' => 'admin@corus.test',
             'city' => 'Genève',
             'accent' => '#ef6f7f',
             'is_active' => true,

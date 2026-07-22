@@ -21,18 +21,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $school = School::updateOrCreate(['slug' => 'tempo'], [
-            'name' => 'Tempo Studio',
-            'email' => 'admin@tempo.test',
+        $school = School::updateOrCreate(['slug' => 'corus'], [
+            'name' => 'Corus Studio',
+            'email' => 'admin@corus.test',
             'city' => 'Genève',
             'accent' => '#ef6f7f',
             'is_active' => true,
         ]);
 
-        User::updateOrCreate(['email' => 'admin@tempo.test'], [
+        User::updateOrCreate(['email' => 'admin@corus.test'], [
             'school_id' => $school->id,
-            'name' => 'Administration Tempo',
-            'password' => 'Tempo2026!',
+            'name' => 'Administration Corus',
+            'password' => 'Corus2026!',
             'is_admin' => true,
         ]);
 
@@ -46,7 +46,7 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($courses as $index => $course) {
-            $location = SchoolLocation::firstOrCreate(['school_id' => $school->id, 'name' => 'Tempo Studio']);
+            $location = SchoolLocation::firstOrCreate(['school_id' => $school->id, 'name' => 'Corus Studio']);
             $discipline = DanceDiscipline::firstOrCreate(['school_id' => $school->id, 'name' => $course['style']]);
             $level = DanceLevel::firstOrCreate(['school_id' => $school->id, 'name' => $course['level']]);
             $danceCourse = DanceCourse::updateOrCreate(
@@ -59,7 +59,7 @@ class DatabaseSeeder extends Seeder
                     'start_date' => '2026-09-01',
                     'end_date' => '2027-06-30',
                     'session_price' => $course['price'] * 30,
-                    'location' => 'Tempo Studio',
+                    'location' => 'Corus Studio',
                     'description' => 'Progressez à votre rythme dans un cours dynamique, créatif et bienveillant.',
                     'is_active' => true,
                     'sort_order' => $index + 1,

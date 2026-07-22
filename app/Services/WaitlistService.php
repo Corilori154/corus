@@ -41,7 +41,7 @@ class WaitlistService
                 'status' => 'invited',
                 'waitlist_token_hash' => hash('sha256', $token),
                 'waitlist_invited_at' => now(),
-                'waitlist_invitation_expires_at' => now()->addHours($lockedCourse->waitlist_invitation_hours),
+                'waitlist_invitation_expires_at' => now()->addSeconds((int) round($lockedCourse->waitlist_invitation_hours * 3600)),
             ]);
             $lockedCourse->decrement('places');
 

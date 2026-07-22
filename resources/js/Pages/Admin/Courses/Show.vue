@@ -14,7 +14,7 @@ const logout = () => router.post('/admin/deconnexion');
     <div class="min-h-screen bg-[#f5f3ee]">
         <header class="border-b border-black/5 bg-white">
             <div class="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
-                <a href="/admin?section=courses" class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-ink text-white">♪</span><span class="font-serif text-2xl font-semibold">tempo<span class="text-coral">.</span></span><span class="rounded-full bg-[#f2eee8] px-3 py-1 text-[10px] font-bold uppercase text-black/45">Admin</span></a>
+                <a href="/admin?section=courses" class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-ink text-white">♪</span><span class="font-serif text-2xl font-semibold">Corus</span><span class="rounded-full bg-[#f2eee8] px-3 py-1 text-[10px] font-bold uppercase text-black/45">Admin</span></a>
                 <button @click="logout" class="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold">Déconnexion</button>
             </div>
         </header>

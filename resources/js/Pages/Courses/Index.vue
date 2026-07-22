@@ -26,7 +26,7 @@ const filteredCourses = computed(() => props.courses.filter(course => {
 }));
 const openCourse = course => router.visit(`/ecole/${props.school.slug}/cours/${course.id}`);
 
-const form = useForm({ course_id: null, first_name: '', last_name: '', email: '', phone: '', start_date: '', dance_role: '', pricing_category_id: '', payment_plan_id: '', terms_accepted: false });
+const form = useForm({ course_id: null, first_name: '', last_name: '', email: '', phone: '', start_date: '', dance_role: '', pricing_category_id: '', payment_plan_id: '', comment: '', terms_accepted: false });
 const trialForm = useForm({ course_id: null, first_name: '', last_name: '', email: '', phone: '', dance_role: '', preferred_date: '', message: '' });
 const trialLessons = computed(() => selectedTrial.value?.lessons || []);
 const serverQuote = ref(null);
@@ -129,7 +129,7 @@ function submit() {
 
         <header class="relative z-20 border-b border-black/5 bg-[#fbfaf6]/90 backdrop-blur-xl">
             <nav class="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
-                <a href="/" class="flex items-center gap-3" aria-label="Tempo, accueil">
+                <a href="/" class="flex items-center gap-3" aria-label="Corus, accueil">
                     <span class="grid h-10 w-10 place-items-center rounded-full bg-ink text-xl text-white">♪</span>
                     <span class="font-serif text-2xl font-semibold tracking-tight">{{ school.name }}<span class="text-coral">.</span></span>
                 </a>
@@ -207,7 +207,7 @@ function submit() {
             <section id="studio" class="bg-ink px-5 py-16 text-white">
                 <div class="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 sm:flex-row sm:items-center lg:px-3">
                     <div><p class="mb-2 text-xs font-bold uppercase tracking-[.2em] text-coral">{{ school.city || 'Votre école de danse' }}</p><h2 class="max-w-2xl font-serif text-3xl sm:text-4xl">Une question sur nos cours ? Notre équipe vous accompagne.</h2></div>
-                    <a :href="`mailto:${school.email}`" class="whitespace-nowrap rounded-full bg-white px-6 py-3 font-bold text-ink transition hover:bg-coral hover:text-white">Nous contacter →</a>
+                    <a :href="school.contact_button_url || `mailto:${school.email}`" class="whitespace-nowrap rounded-full bg-white px-6 py-3 font-bold text-ink transition hover:bg-coral hover:text-white">{{ school.contact_button_label || 'Nous contacter' }} →</a>
                 </div>
             </section>
         </main>
@@ -232,6 +232,7 @@ function submit() {
                     <div v-if="priceQuote" class="rounded-2xl bg-ink p-4 text-white"><div class="flex items-end justify-between gap-4"><div><p class="text-xs text-white/50">{{ priceQuote.discountAmount > 0 ? `Tarif avec rabais multi-cours (${priceQuote.discountPercentage} %)` : priceQuote.categoryName ? `Tarif ${priceQuote.categoryName}` : 'Tarif selon la date de début' }}</p><div class="mt-1 flex items-baseline gap-2"><span v-if="priceQuote.discountAmount > 0 || priceQuote.categoryDiscount > 0" class="text-sm text-white/40 line-through">{{ (priceQuote.categoryDiscount > 0 ? priceQuote.listAmount : priceQuote.baseAmount).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF</span><strong class="font-serif text-3xl">{{ priceQuote.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} CHF</strong></div></div><p class="text-right text-xs text-white/60">{{ priceQuote.remaining }} leçons restantes<br>sur {{ priceQuote.total }} planifiées</p></div><div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15"><div class="h-full rounded-full bg-coral" :style="{ width: `${priceQuote.total ? priceQuote.remaining / priceQuote.total * 100 : 0}%` }"></div></div><p v-if="priceQuote.categoryDiscount > 0" class="mt-2 text-xs font-semibold text-[#9de0b3]">✓ {{ priceQuote.categoryDiscount.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF de tarif {{ priceQuote.categoryName }}</p><p v-if="priceQuote.discountAmount > 0" class="mt-1 text-xs font-semibold text-[#9de0b3]">✓ {{ priceQuote.discountAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF de rabais multi-cours</p><p v-else-if="quoteLoading" class="mt-2 text-[10px] text-white/40">Vérification de vos rabais…</p></div>
                     <div v-if="priceQuote?.installmentCount > 1" class="rounded-xl bg-[#eef0f8] p-4 text-sm text-[#31395d]"><strong>{{ priceQuote.paymentPlanName }} : {{ priceQuote.installmentCount }} échéances de {{ priceQuote.installmentAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF</strong><p v-if="priceQuote.paymentAdjustment" class="mt-1 text-xs opacity-65">{{ priceQuote.paymentAdjustment > 0 ? 'Frais ajoutés' : 'Remise appliquée' }} : {{ Math.abs(priceQuote.paymentAdjustment).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF</p></div>
                     <p class="rounded-xl bg-[#f7f5f0] p-3 text-xs leading-relaxed text-black/55">Les leçons passées et les vacances sont automatiquement déduites. L’équipe de l’école vous contactera pour confirmer votre place.</p>
+                    <label class="block text-sm font-semibold">Commentaire <span class="font-normal text-black/35">(facultatif)</span><textarea v-model="form.comment" rows="3" maxlength="2000" class="mt-2 w-full resize-none rounded-xl border border-black/10 px-4 py-3 font-normal" placeholder="Une information utile pour l’école…"></textarea><span v-if="form.errors.comment" class="mt-1 block text-xs text-coral">{{ form.errors.comment }}</span></label>
                     <div class="rounded-xl border border-black/10 p-4"><details v-if="school.terms_and_conditions" class="mb-3"><summary class="cursor-pointer text-sm font-bold text-coral">Lire les conditions générales</summary><div class="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-[#f7f5f0] p-3 text-xs leading-relaxed text-black/60">{{ school.terms_and_conditions }}</div></details><label class="flex cursor-pointer items-start gap-3 text-sm"><input v-model="form.terms_accepted" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-coral" /><span>J’ai lu et j’accepte les conditions générales de l’école.</span></label><span v-if="form.errors.terms_accepted" class="mt-2 block text-xs text-coral">{{ form.errors.terms_accepted }}</span></div>
                     <button type="submit" :disabled="form.processing" class="w-full rounded-full bg-ink py-3.5 font-bold text-white transition hover:bg-coral disabled:opacity-50">{{ form.processing ? 'Envoi en cours…' : 'Confirmer mon inscription' }}</button>
                 </form>
