@@ -1,19 +1,6 @@
 <script setup>
-import { router, useForm } from '@inertiajs/vue3';
-
-defineProps({ references: Object });
-const labels = { locations: 'Lieux', disciplines: 'Disciplines', levels: 'Niveaux', categories: 'Catégories tarifaires' };
-const forms = Object.fromEntries(Object.keys(labels).map(type => [type, useForm({ name: '' })]));
-const submit = type => forms[type].post(`/admin/referentiels/${type}`, { preserveScroll: true, onSuccess: () => forms[type].reset() });
-const remove = (type, item) => confirm(`Supprimer « ${item.name} » ?`) && router.delete(`/admin/referentiels/${type}/${item.id}`, { preserveScroll: true });
+import { reactive, ref } from 'vue'; import { router, useForm } from '@inertiajs/vue3';
+defineProps({ references:Object }); const types={locations:'Lieux',disciplines:'Disciplines',levels:'Niveaux',categories:'Catégories tarifaires'}; const forms=reactive(Object.fromEntries(Object.keys(types).map(t=>[t,useForm({name:''})]))); const editing=ref(null);
+function submit(type){const f=forms[type],o={preserveScroll:true,onSuccess:()=>{f.reset();editing.value=null}};editing.value?.type===type?f.put(`/admin/referentiels/${type}/${editing.value.item.id}`,o):f.post(`/admin/referentiels/${type}`,o)} function edit(type,item){editing.value={type,item};forms[type].name=item.name;forms[type].clearErrors()} function cancel(type){editing.value=null;forms[type].reset()} const remove=(type,item)=>confirm(`Supprimer « ${item.name} » ?`)&&router.delete(`/admin/referentiels/${type}/${item.id}`,{preserveScroll:true});
 </script>
-
-<template>
-    <section class="grid gap-6 xl:grid-cols-2">
-        <div v-for="(label, type) in labels" :key="type" class="overflow-hidden rounded-3xl bg-white">
-            <div class="border-b border-black/5 px-6 py-5"><h2 class="font-serif text-2xl">{{ label }}</h2><p v-if="type === 'categories'" class="mt-1 text-xs text-black/45">Les prix se définissent ensuite dans chaque cours.</p></div>
-            <form @submit.prevent="submit(type)" class="flex gap-2 p-4"><input v-model="forms[type].name" class="min-w-0 flex-1 rounded-xl border border-black/10 px-3 py-2.5 text-sm" placeholder="Nouvel élément" /><button class="grid h-11 w-11 place-items-center rounded-full bg-ink text-white">＋</button></form>
-            <div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-[#f7f5f0] text-[11px] font-bold uppercase tracking-wider text-black/45"><tr><th class="px-5 py-3">Nom</th><th class="px-5 py-3 text-right">Actions</th></tr></thead><tbody class="divide-y divide-black/5"><tr v-for="item in references[type]" :key="item.id"><td class="px-5 py-4 font-semibold">{{ item.name }}</td><td class="px-5 py-4 text-right"><button @click="remove(type, item)" class="text-red-500">×</button></td></tr></tbody></table><p v-if="!references[type].length" class="p-8 text-center text-sm text-black/35">Aucun élément</p></div>
-        </div>
-    </section>
-</template>
+<template><div class="grid gap-6 lg:grid-cols-2"><section v-for="(label,type) in types" :key="type" class="overflow-hidden rounded-3xl bg-white"><div class="border-b p-5"><h2 class="font-serif text-2xl">{{label}}</h2><form @submit.prevent="submit(type)" class="mt-4 flex gap-2"><input v-model="forms[type].name" class="min-w-0 flex-1 rounded-xl border px-4 py-2" :placeholder="editing?.type===type?'Modifier le nom':'Nouvel élément'"/><button v-if="editing?.type===type" type="button" @click="cancel(type)" class="rounded-full border px-3">×</button><button class="rounded-full bg-ink px-4 text-sm font-bold text-white">Enregistrer</button></form><p v-if="forms[type].errors.name" class="mt-2 text-xs text-red-600">{{forms[type].errors.name}}</p></div><table v-if="references[type].length" class="w-full text-left"><tbody><tr v-for="item in references[type]" :key="item.id"><td class="px-5 py-4 font-semibold">{{item.name}}</td><td class="px-5 py-4"><div class="flex justify-end gap-2"><button @click="edit(type,item)" class="grid h-9 w-9 place-items-center rounded-full bg-black/5" title="Modifier">✎</button><button @click="remove(type,item)" class="grid h-9 w-9 place-items-center rounded-full bg-red-50 text-red-500" title="Supprimer">×</button></div></td></tr></tbody></table><p v-else class="p-8 text-center text-sm text-black/35">Aucun élément</p></section></div></template>

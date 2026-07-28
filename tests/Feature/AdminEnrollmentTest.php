@@ -95,6 +95,23 @@ class AdminEnrollmentTest extends TestCase
         $this->assertSame(0, $course->fresh()->places);
     }
 
+    public function test_admin_can_remove_a_person_from_the_waitlist_and_positions_are_resequenced(): void
+    {
+        $school = School::factory()->create();
+        $admin = User::factory()->create(['school_id' => $school->id, 'is_admin' => true]);
+        $course = DanceCourse::factory()->for($school)->create();
+        $first = $this->waitlisted($school, $course, 'first-remove@example.ch', 1);
+        $second = $this->waitlisted($school, $course, 'second-remove@example.ch', 2);
+
+        $this->actingAs($admin)
+            ->delete("/admin/inscriptions/{$first->id}")
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('enrollments', ['id' => $first->id]);
+        $this->assertSame(1, $second->fresh()->waitlist_position);
+    }
+
     private function waitlisted(School $school, DanceCourse $course, string $email, int $position): Enrollment
     {
         return Enrollment::create([

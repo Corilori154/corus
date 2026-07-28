@@ -67,6 +67,9 @@ class CourseCatalogController extends Controller
             'last_name' => ['required', 'string', 'max:80'],
             'email' => ['required', 'email', 'max:150'],
             'phone' => ['required', 'string', 'min:6', 'max:30', 'regex:/^[0-9+() .\-]+$/'],
+            'is_minor' => ['sometimes', 'boolean'],
+            'legal_guardian_first_name' => ['nullable', 'required_if:is_minor,true', 'string', 'max:80'],
+            'legal_guardian_last_name' => ['nullable', 'required_if:is_minor,true', 'string', 'max:80'],
             'start_date' => ['required', 'date'],
             'dance_role' => ['nullable', 'in:lead,follow'],
             'pricing_category_id' => ['nullable', Rule::exists('pricing_categories', 'id')->where('school_id', $school->id)],
@@ -76,6 +79,7 @@ class CourseCatalogController extends Controller
         ], [
             'terms_accepted.accepted' => 'Vous devez accepter les conditions générales pour vous inscrire.',
         ]);
+        $data['is_minor'] ??= false;
 
         $course = $school->courses()->with('lessons')->where('is_active', true)->findOrFail($data['course_id']);
 
@@ -164,6 +168,9 @@ class CourseCatalogController extends Controller
                 'last_name' => $data['last_name'],
                 'email' => $data['email'],
                 'phone' => $data['phone'],
+                'is_minor' => $data['is_minor'],
+                'legal_guardian_first_name' => $data['is_minor'] ? $data['legal_guardian_first_name'] : null,
+                'legal_guardian_last_name' => $data['is_minor'] ? $data['legal_guardian_last_name'] : null,
                 'comment' => $data['comment'] ?? null,
                 'dance_role' => $data['dance_role'] ?? null,
                 'start_date' => $data['start_date'],
@@ -217,8 +224,11 @@ class CourseCatalogController extends Controller
 
         $formattedAmount = number_format($result['amount'], 2, ',', ' ');
         $accountMessage = $result['created'] ? ' Votre compte client a été créé et vos identifiants ont été envoyés par e-mail.' : '';
+        $discountLabel = $result['discount_type'] === 'percentage'
+            ? "{$result['discount_percentage']} %"
+            : number_format($result['discount_value'], 2, ',', ' ').' CHF fixe';
         $discountMessage = $result['discount_amount'] > 0
-            ? ' Rabais multi-cours de '.number_format($result['discount_amount'], 2, ',', ' ')." CHF appliqué ({$result['discount_percentage']} %)."
+            ? ' Rabais multi-cours de '.number_format($result['discount_amount'], 2, ',', ' ')." CHF appliqué ({$discountLabel})."
             : '';
         $paymentMessage = $result['installment_count'] > 1
             ? ' Plan de paiement : '.$result['installment_count'].' échéances d’environ '.number_format($result['installment_amount'], 2, ',', ' ').' CHF.'
@@ -312,6 +322,9 @@ class CourseCatalogController extends Controller
             'message' => ['nullable', 'string', 'max:1000'],
         ]);
         $course = $school->courses()->with('lessons')->findOrFail($data['course_id']);
+        if (! $course->trial_enabled) {
+            throw ValidationException::withMessages(['course_id' => 'Les cours d’essai sont désactivés pour ce cours.']);
+        }
         if ($course->couple_mode && empty($data['dance_role'])) {
             throw ValidationException::withMessages(['dance_role' => 'Choisissez votre rôle Lead ou Follow.']);
         }
@@ -324,6 +337,7 @@ class CourseCatalogController extends Controller
             'dance_course_id' => $data['course_id'],
             'trial_is_free' => $course->trial_is_free,
             'trial_price' => $course->trial_is_free ? 0 : $course->trial_price,
+            'trial_payment_on_site' => ! $course->trial_is_free && $course->trial_payment_on_site,
         ]);
 
         return back()->with('success', "Votre demande de cours d’essai pour {$course->title} a bien été envoyée. L’école vous contactera pour la confirmer.");
@@ -342,8 +356,14 @@ class CourseCatalogController extends Controller
             ->orderByDesc('course_count')
             ->first();
         $grossTotal = (float) $previousEnrollments->sum('base_amount') + $baseAmount;
-        $discountPercentage = $rule ? (float) $rule->percentage : 0;
-        $targetDiscount = round($grossTotal * $discountPercentage / 100, 2);
+        $discountType = $rule?->discount_type ?? 'percentage';
+        $discountPercentage = $rule && $discountType === 'percentage' ? (float) $rule->percentage : 0;
+        $discountValue = $rule
+            ? ($discountType === 'fixed' ? (float) $rule->fixed_amount : (float) $rule->percentage)
+            : 0;
+        $targetDiscount = $discountType === 'fixed'
+            ? round($discountValue, 2)
+            : round($grossTotal * $discountPercentage / 100, 2);
         $alreadyGranted = (float) $previousEnrollments->sum('discount_amount');
         $discountAmount = min($baseAmount, max(0, round($targetDiscount - $alreadyGranted, 2)));
 
@@ -351,6 +371,8 @@ class CourseCatalogController extends Controller
             'amount' => round($baseAmount - $discountAmount, 2),
             'discount_amount' => $discountAmount,
             'discount_percentage' => $discountPercentage,
+            'discount_type' => $discountType,
+            'discount_value' => $discountValue,
             'course_count' => $newCourseCount,
         ];
     }

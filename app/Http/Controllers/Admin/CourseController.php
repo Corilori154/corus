@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CourseController extends Controller
 {
@@ -32,6 +33,8 @@ class CourseController extends Controller
             return [
                 'id' => $latest->user_id ?: 'email-'.md5($latest->email),
                 'name' => trim($latest->first_name.' '.$latest->last_name),
+                'first_name' => $latest->first_name,
+                'last_name' => $latest->last_name,
                 'email' => $latest->email,
                 'phone' => $studentEnrollments->firstWhere('phone', '!=', null)?->phone,
                 'has_account' => (bool) $latest->user_id,
@@ -127,6 +130,56 @@ class CourseController extends Controller
         ]);
     }
 
+    public function exportStudents(Request $request, DanceCourse $course): StreamedResponse
+    {
+        abort_unless($course->school_id === $request->user()->school_id, 404);
+
+        $enrollments = $course->enrollments()
+            ->whereNotIn('status', ['waitlist', 'invited', 'expired'])
+            ->oldest('last_name')
+            ->oldest('first_name')
+            ->get();
+        $filename = 'eleves-'.Str::slug($course->title).'-'.now()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($course, $enrollments) {
+            $output = fopen('php://output', 'wb');
+            fwrite($output, "\xEF\xBB\xBF");
+            fputcsv($output, ['Cours', 'Prénom', 'Nom', 'E-mail', 'Téléphone', 'Mineur', 'Représentant légal', 'Rôle', 'Date de début', 'Leçons', 'Montant (CHF)', 'Statut', 'Date d’inscription'], ';', '"', '', "\r\n");
+
+            foreach ($enrollments as $enrollment) {
+                fputcsv($output, [
+                    $this->excelSafe($course->title),
+                    $this->excelSafe($enrollment->first_name),
+                    $this->excelSafe($enrollment->last_name),
+                    $this->excelSafe($enrollment->email),
+                    $this->excelSafe($enrollment->phone),
+                    $enrollment->is_minor ? 'Oui' : 'Non',
+                    $enrollment->is_minor
+                        ? $this->excelSafe(trim($enrollment->legal_guardian_first_name.' '.$enrollment->legal_guardian_last_name))
+                        : '',
+                    $enrollment->dance_role ?: '—',
+                    $enrollment->start_date?->format('d.m.Y'),
+                    $enrollment->lessons_count,
+                    number_format((float) $enrollment->amount, 2, ',', ''),
+                    'Inscrit',
+                    $enrollment->created_at?->format('d.m.Y H:i'),
+                ], ';', '"', '', "\r\n");
+            }
+
+            fclose($output);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache',
+        ]);
+    }
+
+    private function excelSafe(mixed $value): string
+    {
+        $value = (string) ($value ?? '');
+
+        return preg_match('/^[=+\-@]/u', $value) ? "'".$value : $value;
+    }
+
     public function update(Request $request, DanceCourse $course): RedirectResponse
     {
         abort_unless($course->school_id === $request->user()->school_id, 404);
@@ -184,8 +237,14 @@ class CourseController extends Controller
             'session_price' => ['required', 'numeric', 'min:0', 'max:99999'],
             'category_prices' => ['nullable', 'array'],
             'category_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'trial_enabled' => ['sometimes', 'boolean'],
             'trial_is_free' => ['sometimes', 'boolean'],
-            'trial_price' => [Rule::excludeIf($request->boolean('trial_is_free')), 'nullable', 'required_if:trial_is_free,false', 'numeric', 'min:0.01', 'max:9999'],
+            'trial_price' => [
+                Rule::excludeIf(($request->has('trial_enabled') && ! $request->boolean('trial_enabled')) || $request->boolean('trial_is_free')),
+                Rule::requiredIf(! $request->boolean('trial_is_free')),
+                'nullable', 'numeric', 'min:0.01', 'max:9999',
+            ],
+            'trial_payment_on_site' => ['sometimes', 'boolean'],
             'image' => ['nullable', 'string', 'max:2000', function (string $attribute, mixed $value, \Closure $fail) {
                 if ($value && ! Str::startsWith($value, ['http://', 'https://', '/storage/course-images/'])) $fail('Utilisez une URL valide ou téléversez une image.');
             }],
@@ -199,8 +258,10 @@ class CourseController extends Controller
         ]);
 
         $data['waitlist_invitation_hours'] ??= 72;
+        $data['trial_enabled'] ??= true;
         $data['trial_is_free'] ??= true;
-        $data['trial_price'] = $data['trial_is_free'] ? 0 : $data['trial_price'];
+        $data['trial_price'] = ! $data['trial_enabled'] || $data['trial_is_free'] ? 0 : ($data['trial_price'] ?? 0);
+        $data['trial_payment_on_site'] = $data['trial_enabled'] && ! $data['trial_is_free'] && ($data['trial_payment_on_site'] ?? false);
         if (! $request->hasFile('image_upload') && blank($data['image'] ?? null)) {
             throw \Illuminate\Validation\ValidationException::withMessages(['image' => 'Ajoutez une URL ou téléversez une image.']);
         }
@@ -260,5 +321,13 @@ class CourseController extends Controller
         $lesson->delete();
 
         return back()->with('success', 'La leçon a été retirée du calendrier et du calcul tarifaire.');
+    }
+
+    public function updateLesson(Request $request, DanceCourse $course, CourseLesson $lesson): RedirectResponse
+    {
+        abort_unless($course->school_id === $request->user()->school_id && $lesson->dance_course_id === $course->id, 404);
+        $data = $request->validate(['lesson_date' => ['required', 'date', 'after_or_equal:'.$course->start_date->toDateString(), 'before_or_equal:'.$course->end_date->toDateString()]]);
+        $lesson->update($data);
+        return back()->with('success', 'La date de la leçon a été modifiée.');
     }
 }

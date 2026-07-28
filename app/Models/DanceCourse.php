@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-#[Fillable(['school_id', 'season_id', 'school_location_id', 'dance_discipline_id', 'dance_level_id', 'title', 'style', 'level', 'day', 'time', 'start_date', 'end_date', 'teacher', 'location', 'description', 'places', 'capacity', 'price', 'session_price', 'trial_is_free', 'trial_price', 'accent', 'image', 'is_active', 'couple_mode', 'max_role_gap', 'balance_after_count', 'waitlist_invitation_hours', 'sort_order'])]
+#[Fillable(['school_id', 'season_id', 'school_location_id', 'dance_discipline_id', 'dance_level_id', 'title', 'style', 'level', 'day', 'time', 'start_date', 'end_date', 'teacher', 'location', 'description', 'places', 'capacity', 'price', 'session_price', 'trial_enabled', 'trial_is_free', 'trial_price', 'trial_payment_on_site', 'accent', 'image', 'is_active', 'couple_mode', 'max_role_gap', 'balance_after_count', 'waitlist_invitation_hours', 'sort_order'])]
 class DanceCourse extends Model
 {
     use HasFactory;
@@ -50,7 +50,9 @@ class DanceCourse extends Model
             'end_date' => 'date:Y-m-d',
             'is_active' => 'boolean',
             'couple_mode' => 'boolean',
+            'trial_enabled' => 'boolean',
             'trial_is_free' => 'boolean',
+            'trial_payment_on_site' => 'boolean',
         ];
     }
 }

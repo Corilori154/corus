@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Services\InvoiceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,45 @@ use Inertia\Response;
 
 class InvoiceController extends Controller
 {
+    public function update(Request $request, Invoice $invoice): RedirectResponse
+    {
+        $this->authorizeInvoice($request, $invoice);
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'issued_at' => ['required', 'date'],
+            'due_at' => ['required', 'date', 'after_or_equal:issued_at'],
+        ]);
+        if ((float) $data['amount'] < $invoice->paid_amount) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['amount' => 'Le montant ne peut pas être inférieur au total déjà encaissé.']);
+        }
+        $invoice->update($data);
+        $invoice->refresh()->update(['status' => $invoice->balance <= 0 ? 'paid' : 'open', 'paid_at' => $invoice->balance <= 0 ? now() : null]);
+        return back()->with('success', 'La facture a été modifiée.');
+    }
+
+    public function destroy(Request $request, Invoice $invoice): RedirectResponse
+    {
+        $this->authorizeInvoice($request, $invoice);
+        $invoice->delete();
+        return redirect()->route('admin.dashboard', ['section' => 'invoices'])->with('success', 'La facture et ses paiements ont été supprimés.');
+    }
+
+    public function updatePayment(Request $request, Invoice $invoice, InvoicePayment $payment): RedirectResponse
+    {
+        $this->authorizePayment($request, $invoice, $payment);
+        $data = $request->validate(['amount' => ['required', 'numeric', 'min:0.01'], 'paid_on' => ['required', 'date'], 'method' => ['required', Rule::in(['bank_transfer', 'cash', 'card', 'twint', 'other'])], 'note' => ['nullable', 'string', 'max:500']]);
+        $otherPaid = (float) $invoice->payments()->where('id', '!=', $payment->id)->sum('amount');
+        if ($otherPaid + (float) $data['amount'] > (float) $invoice->amount) throw \Illuminate\Validation\ValidationException::withMessages(['amount' => 'Le total des paiements dépasserait le montant de la facture.']);
+        $payment->update($data); $this->syncStatus($invoice);
+        return back()->with('success', 'Le paiement a été modifié.');
+    }
+
+    public function destroyPayment(Request $request, Invoice $invoice, InvoicePayment $payment): RedirectResponse
+    {
+        $this->authorizePayment($request, $invoice, $payment);
+        $payment->delete(); $this->syncStatus($invoice);
+        return back()->with('success', 'Le paiement a été supprimé.');
+    }
     public function show(Request $request, Invoice $invoice): Response
     {
         abort_unless($invoice->school_id === $request->user()->school_id, 404);
@@ -80,4 +120,8 @@ class InvoiceController extends Controller
         Notification::route('mail', $invoice->enrollment->email)->notify(new InvoiceCreated($invoice));
         return back()->with('success', "La facture {$invoice->number} a été envoyée à {$invoice->enrollment->email}.");
     }
+
+    private function authorizeInvoice(Request $request, Invoice $invoice): void { abort_unless($invoice->school_id === $request->user()->school_id, 404); }
+    private function authorizePayment(Request $request, Invoice $invoice, InvoicePayment $payment): void { $this->authorizeInvoice($request, $invoice); abort_unless($payment->invoice_id === $invoice->id, 404); }
+    private function syncStatus(Invoice $invoice): void { $invoice->refresh(); $invoice->update(['status' => $invoice->balance <= 0 ? 'paid' : 'open', 'paid_at' => $invoice->balance <= 0 ? now() : null]); }
 }

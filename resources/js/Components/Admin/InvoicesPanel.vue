@@ -32,6 +32,16 @@ const badge = value => ({ open: 'bg-amber-50 text-amber-700', partial: 'bg-blue-
 function openPayment(invoice) { paymentInvoice.value = invoice; payment.defaults({ amount: Number(invoice.balance).toFixed(2), paid_on: new Date().toISOString().slice(0, 10), method: 'bank_transfer', note: '' }); payment.reset(); payment.clearErrors(); }
 function submitPayment() { payment.post(`/admin/factures/${paymentInvoice.value.id}/paiements`, { preserveScroll: true, onSuccess: () => paymentInvoice.value = null }); }
 function openInvoice(invoice) { router.visit(`/admin/factures/${invoice.id}`); }
+function editInvoice(invoice) {
+    const amount = prompt('Montant de la facture (CHF)', invoice.amount);
+    if (amount === null) return;
+    const dueAt = prompt('Date d’échéance (AAAA-MM-JJ)', String(invoice.due_at).slice(0, 10));
+    if (dueAt === null) return;
+    router.put(`/admin/factures/${invoice.id}`, { amount, issued_at: String(invoice.issued_at).slice(0, 10), due_at: dueAt }, { preserveScroll: true });
+}
+function deleteInvoice(invoice) {
+    if (confirm(`Supprimer définitivement la facture ${invoice.number} et tous ses paiements ?`)) router.delete(`/admin/factures/${invoice.id}`, { preserveScroll: true });
+}
 </script>
 
 <template>
@@ -55,7 +65,7 @@ function openInvoice(invoice) { router.visit(`/admin/factures/${invoice.id}`); }
               <td class="px-5 py-5"><strong class="text-sm">{{ invoice.enrollment.course?.title }}</strong><p class="mt-1 text-xs text-black/40">Émise le {{ date(invoice.issued_at) }}</p><p class="text-xs text-black/40">À payer le {{ date(invoice.due_at) }}</p></td>
               <td class="px-5 py-5"><p class="text-xs text-black/40">Facturé : {{ money(invoice.amount) }} CHF</p><p class="text-xs text-green-700">Payé : {{ money(invoice.paid_amount) }} CHF</p><strong class="mt-1 block text-sm">Solde : {{ money(invoice.balance) }} CHF</strong></td>
               <td class="px-5 py-5"><span class="inline-flex rounded-full px-3 py-1.5 text-[10px] font-bold uppercase" :class="badge(invoice.payment_status)">{{ label(invoice.payment_status) }}</span><p v-if="invoice.payments.length" class="mt-2 text-xs text-black/40">{{ invoice.payments.length }} paiement{{ invoice.payments.length > 1 ? 's' : '' }}</p></td>
-              <td class="px-5 py-5"><div class="flex justify-end gap-2"><button v-if="invoice.balance > 0" @click.stop="openPayment(invoice)" class="rounded-full bg-green-700 px-4 py-2 text-xs font-bold text-white">＋ Paiement</button><a :href="`/admin/factures/${invoice.id}`" class="rounded-full bg-ink px-4 py-2 text-xs font-bold text-white" @click.stop>Voir les détails</a><button @click.stop="router.post(`/admin/factures/${invoice.id}/envoyer`, {}, { preserveScroll: true })" class="rounded-full border border-black/10 px-4 py-2 text-xs font-bold">Envoyer</button></div></td>
+              <td class="px-5 py-5"><div class="flex justify-end gap-2"><button v-if="invoice.balance > 0" @click.stop="openPayment(invoice)" class="rounded-full bg-green-700 px-4 py-2 text-xs font-bold text-white">＋ Paiement</button><a :href="`/admin/factures/${invoice.id}`" class="rounded-full bg-ink px-4 py-2 text-xs font-bold text-white" @click.stop>Voir les détails</a><button @click.stop="router.post(`/admin/factures/${invoice.id}/envoyer`, {}, { preserveScroll: true })" class="rounded-full border border-black/10 px-4 py-2 text-xs font-bold">Envoyer</button><button @click.stop="editInvoice(invoice)" class="grid h-9 w-9 place-items-center rounded-full bg-black/5" title="Modifier">✎</button><button @click.stop="deleteInvoice(invoice)" class="grid h-9 w-9 place-items-center rounded-full bg-red-50 text-red-500" title="Supprimer">×</button></div></td>
             </tr>
           </tbody>
         </table>

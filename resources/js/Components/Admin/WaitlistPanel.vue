@@ -39,6 +39,15 @@ function forceAccept(item) {
         onFinish: () => busyId.value = null,
     });
 }
+
+function removeFromWaitlist(item) {
+    if (!confirm(`Supprimer ${item.first_name} ${item.last_name} de la liste d’attente pour ${item.course?.title} ?`)) return;
+    busyId.value = item.id;
+    router.delete(`/admin/inscriptions/${item.id}`, {
+        preserveScroll: true,
+        onFinish: () => busyId.value = null,
+    });
+}
 </script>
 
 <template>
@@ -58,7 +67,7 @@ function forceAccept(item) {
                             <td class="px-5 py-5"><span class="rounded-full bg-black/5 px-3 py-1 text-xs font-bold uppercase">{{ item.dance_role || '—' }}</span></td>
                             <td class="px-5 py-5"><span class="rounded-full px-3 py-1.5 text-[10px] font-bold uppercase" :class="badge(item.status)">{{ label(item.status) }}</span></td>
                             <td class="px-5 py-5 text-xs text-black/45"><template v-if="item.status === 'invited'">Envoyée le {{ date(item.waitlist_invited_at) }}<br><strong class="text-black/65">Expire le {{ date(item.waitlist_invitation_expires_at) }}</strong></template><template v-else-if="item.status === 'expired'">Délai dépassé</template><template v-else>En attente</template></td>
-                            <td class="px-5 py-5 text-right"><button @click="forceAccept(item)" :disabled="busyId === item.id" class="rounded-full bg-green-50 px-4 py-2 text-xs font-bold text-green-700 hover:bg-green-700 hover:text-white disabled:opacity-50">Forcer l’acceptation</button></td>
+                            <td class="px-5 py-5 text-right"><div class="flex justify-end gap-2"><button @click="forceAccept(item)" :disabled="busyId === item.id" class="rounded-full bg-green-50 px-4 py-2 text-xs font-bold text-green-700 hover:bg-green-700 hover:text-white disabled:opacity-50">Forcer l’acceptation</button><button @click="removeFromWaitlist(item)" :disabled="busyId === item.id" class="rounded-full bg-red-50 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-600 hover:text-white disabled:opacity-50">Supprimer</button></div></td>
                         </tr>
                     </tbody>
                 </table>

@@ -7,6 +7,7 @@ const emit = defineEmits(['edit', 'delete', 'remove-lesson']);
 const expanded = ref(null);
 const money = value => Number(value || 0).toLocaleString('fr-CH', { minimumFractionDigits: 2 });
 const date = value => new Date(`${value}T12:00:00`).toLocaleDateString('fr-CH');
+function editLesson(course, lesson) { const value = prompt('Nouvelle date (AAAA-MM-JJ)', lesson.lesson_date); if (value) router.put(`/admin/cours/${course.id}/lecons/${lesson.id}`, { lesson_date: value }, { preserveScroll: true }); }
 </script>
 
 <template>
@@ -27,11 +28,11 @@ const date = value => new Date(`${value}T12:00:00`).toLocaleDateString('fr-CH');
                             <td class="px-5 py-5"><strong class="text-sm">{{ course.season?.name || 'Non attribuée' }}</strong><p class="mt-1 text-xs text-black/40">{{ date(course.start_date) }} – {{ date(course.end_date) }}</p></td>
                             <td class="px-5 py-5"><strong class="text-sm">{{ course.day }} · {{ course.time }}</strong><p class="mt-1 text-xs text-black/40">{{ course.location }}</p></td>
                             <td class="px-5 py-5"><strong>{{ course.places }} / {{ course.capacity }}</strong><p class="text-xs text-black/40">places disponibles</p></td>
-                            <td class="px-5 py-5"><strong>{{ money(course.session_price) }} CHF</strong><p class="text-xs" :class="course.trial_is_free ? 'text-green-700' : 'text-amber-700'">{{ course.trial_is_free ? 'Essai gratuit' : `Essai ${money(course.trial_price)} CHF` }}</p></td>
+                            <td class="px-5 py-5"><strong>{{ money(course.session_price) }} CHF</strong><p class="text-xs" :class="course.trial_is_free ? 'text-green-700' : 'text-amber-700'">{{ !course.trial_enabled ? 'Essais désactivés' : course.trial_is_free ? 'Essai gratuit' : `Essai ${money(course.trial_price)} CHF${course.trial_payment_on_site ? ' · sur place' : ''}` }}</p></td>
                             <td class="px-5 py-5"><span class="rounded-full px-3 py-1.5 text-[10px] font-bold uppercase" :class="course.is_active ? 'bg-green-50 text-green-700' : 'bg-black/5 text-black/40'">{{ course.is_active ? 'Publié' : 'Brouillon' }}</span></td>
                             <td class="px-5 py-5"><div class="flex justify-end gap-2"><button @click.stop="expanded = expanded === course.id ? null : course.id" class="rounded-full border border-black/10 px-3 py-2 text-xs font-bold">{{ course.lessons.length }} leçons</button><button @click.stop="emit('edit', course)" class="grid h-9 w-9 place-items-center rounded-full bg-black/5" title="Modifier">✎</button><button @click.stop="emit('delete', course)" class="grid h-9 w-9 place-items-center rounded-full bg-red-50 text-red-500" title="Supprimer">×</button></div></td>
                         </tr>
-                        <tr v-if="expanded === course.id"><td colspan="7" class="bg-[#f7f5f0] px-6 py-5"><div class="mb-3"><strong>Calendrier des leçons</strong><p class="text-xs text-black/40">Retirez les vacances ou fermetures.</p></div><div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><div v-for="lesson in course.lessons" :key="lesson.id" class="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm"><span>{{ date(lesson.lesson_date) }}</span><button @click="emit('remove-lesson', course, lesson)" class="text-red-500">×</button></div></div></td></tr>
+                        <tr v-if="expanded === course.id"><td colspan="7" class="bg-[#f7f5f0] px-6 py-5"><div class="mb-3"><strong>Calendrier des leçons</strong><p class="text-xs text-black/40">Modifiez ou retirez les vacances et fermetures.</p></div><div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><div v-for="lesson in course.lessons" :key="lesson.id" class="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm"><span>{{ date(lesson.lesson_date) }}</span><div class="flex gap-1"><button @click="editLesson(course, lesson)" class="grid h-8 w-8 place-items-center rounded-full bg-black/5" title="Modifier">✎</button><button @click="emit('remove-lesson', course, lesson)" class="grid h-8 w-8 place-items-center rounded-full bg-red-50 text-red-500" title="Supprimer">×</button></div></div></div></td></tr>
                     </template>
                 </tbody>
             </table>

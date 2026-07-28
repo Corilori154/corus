@@ -44,6 +44,18 @@ class CatalogReferenceController extends Controller
         return back()->with('success', 'L’élément a été supprimé.');
     }
 
+    public function update(Request $request, string $type, int $reference): RedirectResponse
+    {
+        $model = $this->model($type);
+        $item = $model::findOrFail($reference);
+        abort_unless($item->school_id === $request->user()->school_id, 404);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100', Rule::unique($item->getTable())->where('school_id', $request->user()->school_id)->ignore($item->id)],
+        ]);
+        $item->update($data);
+        return back()->with('success', 'L’élément a été modifié.');
+    }
+
     /** @return class-string<Model> */
     private function model(string $type): string
     {

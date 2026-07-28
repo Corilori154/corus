@@ -40,9 +40,6 @@ class SeasonController extends Controller
     public function destroy(Request $request, Season $season): RedirectResponse
     {
         abort_unless($season->school_id === $request->user()->school_id, 404);
-        if ($season->courses()->exists()) {
-            return back()->withErrors(['season' => 'Cette saison contient des cours et ne peut pas être supprimée.']);
-        }
         $season->delete();
 
         return back()->with('success', 'La saison a été supprimée.');

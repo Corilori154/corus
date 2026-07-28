@@ -59,4 +59,15 @@ class AdministratorController extends Controller
 
         return back()->with('success', 'Le compte administrateur a été supprimé.');
     }
+
+    public function update(Request $request, User $administrator): RedirectResponse
+    {
+        abort_unless($administrator->school_id === $request->user()->school_id && $administrator->is_admin, 404);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($administrator->id)],
+        ]);
+        $administrator->update($data);
+        return back()->with('success', 'Le compte administrateur a été modifié.');
+    }
 }

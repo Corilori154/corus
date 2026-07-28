@@ -13,9 +13,34 @@ use App\Services\WaitlistService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class EnrollmentController extends Controller
 {
+    public function update(Request $request, Enrollment $enrollment): RedirectResponse
+    {
+        abort_unless($enrollment->school_id === $request->user()->school_id, 404);
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'max:80'],
+            'last_name' => ['required', 'string', 'max:80'],
+            'email' => ['required', 'email', 'max:150', $enrollment->user_id ? Rule::unique('users', 'email')->ignore($enrollment->user_id) : Rule::unique('users', 'email')],
+            'phone' => ['required', 'string', 'min:6', 'max:30'],
+            'start_date' => ['required', 'date'],
+            'dance_role' => ['nullable', 'in:lead,follow'],
+            'comment' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($enrollment, $data) {
+            $enrollment->update($data);
+            $enrollment->user?->update([
+                'name' => trim($data['first_name'].' '.$data['last_name']),
+                'email' => $data['email'],
+            ]);
+        });
+
+        return back()->with('success', 'L’inscription a été modifiée.');
+    }
+
     public function reposition(Request $request, Enrollment $enrollment): RedirectResponse
     {
         abort_unless($enrollment->school_id === $request->user()->school_id, 404);
