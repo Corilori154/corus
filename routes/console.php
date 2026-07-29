@@ -8,5 +8,5 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('waitlist:process')->everyMinute()->onOneServer()->withoutOverlapping();
+Schedule::command('waitlist:process')->daily()->onOneServer()->withoutOverlapping();
 Schedule::command('invoices:send-reminders')->dailyAt('08:00')->withoutOverlapping();

@@ -30,6 +30,42 @@ const filteredCourses = computed(() => props.courses.filter(course => {
     const matchesSearch = !term || `${course.title} ${course.teacher} ${course.day}`.toLocaleLowerCase('fr').includes(term);
     return matchesStyle && matchesLevel && matchesLocation && matchesSearch;
 }));
+
+const dayOrder = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const dayThemes = [
+    { accent: '#d95f6f', soft: '#fce8e9', border: '#f2c3c8' },
+    { accent: '#c26a2e', soft: '#fbeedc', border: '#efd1ad' },
+    { accent: '#2f7d68', soft: '#e2f2ed', border: '#b9ded3' },
+    { accent: '#3972a8', soft: '#e6f0f9', border: '#bfd6eb' },
+    { accent: '#7259a6', soft: '#eee9f8', border: '#d4c8eb' },
+    { accent: '#a04f7a', soft: '#f8e8f0', border: '#e9c5d8' },
+    { accent: '#66703f', soft: '#f0f1df', border: '#d9dcba' },
+];
+const normalizeDay = day => (day || '').toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+const timeValue = time => {
+    const match = String(time || '').match(/(\d{1,2})(?:[h:.](\d{2}))?/i);
+    return match ? Number(match[1]) * 60 + Number(match[2] || 0) : Number.MAX_SAFE_INTEGER;
+};
+const groupedCourses = computed(() => {
+    const groups = new Map();
+    filteredCourses.value.forEach(course => {
+        const key = normalizeDay(course.day);
+        if (!groups.has(key)) groups.set(key, { key, label: course.day || 'Autres jours', courses: [] });
+        groups.get(key).courses.push(course);
+    });
+
+    return [...groups.values()]
+        .map((group, index) => {
+            const weekdayIndex = dayOrder.indexOf(group.key);
+            return {
+                ...group,
+                order: weekdayIndex === -1 ? dayOrder.length + index : weekdayIndex,
+                theme: dayThemes[weekdayIndex === -1 ? index % dayThemes.length : weekdayIndex],
+                courses: group.courses.sort((a, b) => timeValue(a.time) - timeValue(b.time) || a.title.localeCompare(b.title, 'fr')),
+            };
+        })
+        .sort((a, b) => a.order - b.order);
+});
 const openCourse = course => router.visit(`/ecole/${props.school.slug}/cours/${course.id}`);
 
 const form = useForm({ course_id: null, first_name: '', last_name: '', email: '', phone: '', is_minor: false, legal_guardian_first_name: '', legal_guardian_last_name: '', start_date: '', dance_role: '', pricing_category_id: '', payment_plan_id: '', comment: '', terms_accepted: false });
@@ -180,33 +216,40 @@ function submit() {
                     <p class="text-sm text-black/45">{{ filteredCourses.length }} cours disponible{{ filteredCourses.length > 1 ? 's' : '' }}</p>
                 </div>
 
-                <div v-if="filteredCourses.length" class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    <article v-for="course in filteredCourses" :key="course.id" tabindex="0" role="link" :aria-label="`Voir les détails du cours ${course.title}`" class="group cursor-pointer overflow-hidden rounded-[1.75rem] bg-white soft-shadow transition duration-300 hover:-translate-y-1 focus:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-coral/40" @click="openCourse(course)" @keydown.enter.self="openCourse(course)">
-                        <div class="relative h-64 overflow-hidden">
-                            <img :src="course.image" :alt="course.title" class="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent"></div>
-                            <span class="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold backdrop-blur">{{ course.level }}</span>
-                            <span class="absolute bottom-4 left-4 text-xs font-semibold uppercase tracking-wider text-white/80">avec {{ course.teacher }}</span>
-                        </div>
-                        <div class="p-5 sm:p-6">
-                            <div class="mb-4 flex items-start justify-between gap-3">
-                                <div><p class="mb-1 text-xs font-bold uppercase tracking-[.16em] text-coral">{{ course.style }}</p><h3 class="font-serif text-2xl leading-tight transition group-hover:text-coral">{{ course.title }}</h3></div>
-                                <span class="whitespace-nowrap text-lg font-bold">{{ Number(course.session_price).toLocaleString('fr-FR') }} CHF<small class="block text-right text-[10px] font-normal text-black/40">session complète</small></span>
-                            </div>
-                            <p class="mb-4 line-clamp-2 min-h-10 text-sm leading-relaxed text-black/50">{{ course.description }}</p>
-                            <div class="mb-5 flex items-center gap-3 rounded-2xl bg-[#f7f5f0] p-3.5 text-sm">
-                                <span class="grid h-9 w-9 place-items-center rounded-full bg-white">◷</span>
-                                <div><strong>{{ course.day }} · {{ course.location }}</strong><p class="text-xs text-black/50">{{ course.time }} · {{ course.lessons.length }} leçons</p></div>
-                            </div>
-                            <div class="flex items-center justify-between gap-4">
-                                <div class="min-w-0 flex-1">
-                                    <p class="mb-1.5 text-xs font-semibold" :class="course.places === 0 ? 'text-black/40' : course.places <= 3 ? 'text-coral' : 'text-black/55'">{{ course.places === 0 ? 'Cours complet' : `${course.places} places restantes` }}</p>
-                                    <div class="h-1.5 overflow-hidden rounded-full bg-black/8"><div class="h-full rounded-full" :style="{ width: `${((course.capacity - course.places) / course.capacity) * 100}%`, backgroundColor: course.accent }"></div></div>
+                <div v-if="filteredCourses.length" class="space-y-10">
+                    <section v-for="group in groupedCourses" :key="group.key" class="overflow-hidden rounded-[2rem] border bg-white/60" :style="{ borderColor: group.theme.border }">
+                        <header class="flex items-center justify-between gap-4 px-5 py-5 sm:px-7" :style="{ backgroundColor: group.theme.soft }">
+                            <div class="flex items-center gap-4">
+                                <span class="h-11 w-1.5 rounded-full" :style="{ backgroundColor: group.theme.accent }"></span>
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-[.2em] text-black/45">Planning du jour</p>
+                                    <h3 class="font-serif text-3xl capitalize sm:text-4xl">{{ group.label }}</h3>
                                 </div>
-                                <div class="flex flex-col gap-2"><button v-if="course.trial_enabled" @click.stop="openTrial(course)" class="rounded-full border border-black/10 px-4 py-2 text-xs font-bold transition hover:border-coral hover:text-coral">{{ course.trial_is_free ? 'Essai gratuit' : `Essai · ${Number(course.trial_price).toLocaleString('fr-CH')} CHF` }}</button><button :disabled="course.places === 0" @click.stop="openEnrollment(course)" class="rounded-full px-4 py-2 text-xs font-bold transition" :class="course.places === 0 ? 'cursor-not-allowed bg-black/5 text-black/30' : 'bg-ink text-white hover:bg-coral'">S’inscrire</button></div>
                             </div>
+                            <span class="rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold" :style="{ color: group.theme.accent }">{{ group.courses.length }} cours</span>
+                        </header>
+
+                        <div class="grid gap-4 p-4 sm:p-5 lg:grid-cols-2">
+                            <article v-for="course in group.courses" :key="course.id" tabindex="0" role="link" :aria-label="`Voir les détails du cours ${course.title}`" class="group cursor-pointer rounded-3xl border border-black/5 bg-white p-4 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 sm:p-5" :style="{ '--tw-ring-color': group.theme.accent }" @click="openCourse(course)" @keydown.enter.self="openCourse(course)">
+                                <div class="flex gap-4">
+                                    <div class="w-20 shrink-0 sm:w-24">
+                                        <p class="font-serif text-2xl font-semibold leading-none" :style="{ color: group.theme.accent }">{{ course.time }}</p>
+                                        <p class="mt-2 text-[11px] font-semibold leading-tight text-black/45">{{ course.location }}</p>
+                                    </div>
+                                    <div class="min-w-0 flex-1 border-l pl-4" :style="{ borderColor: group.theme.border }">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div class="min-w-0"><p class="text-[10px] font-bold uppercase tracking-[.16em]" :style="{ color: group.theme.accent }">{{ course.style }} · {{ course.level }}</p><h4 class="mt-1 font-serif text-xl leading-tight sm:text-2xl">{{ course.title }}</h4><p class="mt-1 text-xs text-black/45">avec {{ course.teacher }}</p></div>
+                                            <img :src="course.image" :alt="course.title" class="h-14 w-14 shrink-0 rounded-2xl object-cover sm:h-16 sm:w-16" />
+                                        </div>
+                                        <div class="mt-4 flex flex-wrap items-end justify-between gap-3">
+                                            <div><p class="text-sm font-bold">{{ Number(course.session_price).toLocaleString('fr-FR') }} CHF</p><p class="text-[10px] text-black/40">{{ course.lessons.length }} leçons · session complète</p><p class="mt-1 text-xs font-semibold" :class="course.places === 0 ? 'text-black/35' : course.places <= 3 ? 'text-coral' : 'text-black/50'">{{ course.places === 0 ? 'Cours complet' : `${course.places} places restantes` }}</p></div>
+                                            <div class="flex flex-wrap justify-end gap-2"><button v-if="course.trial_enabled" @click.stop="openTrial(course)" class="rounded-full border border-black/10 px-3 py-2 text-xs font-bold transition hover:border-coral hover:text-coral">{{ course.trial_is_free ? 'Essai gratuit' : `Essai · ${Number(course.trial_price).toLocaleString('fr-CH')} CHF` }}</button><button :disabled="course.places === 0" @click.stop="openEnrollment(course)" class="rounded-full px-3 py-2 text-xs font-bold transition" :class="course.places === 0 ? 'cursor-not-allowed bg-black/5 text-black/30' : 'bg-ink text-white hover:bg-coral'">S’inscrire</button></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
                         </div>
-                    </article>
+                    </section>
                 </div>
                 <div v-else class="rounded-3xl border border-dashed border-black/15 py-20 text-center"><p class="font-serif text-2xl">Aucun cours trouvé</p><button @click="search = ''; activeStyle = 'Tous'; activeLevel = 'Tous'; activeLocation = 'Tous'" class="mt-3 text-sm font-bold text-coral">Réinitialiser les filtres</button></div>
             </section>
