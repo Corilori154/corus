@@ -295,6 +295,18 @@ class CourseCatalogTest extends TestCase
         $this->assertSame(55.0, (float) $invoices[1]->amount);
         $this->assertSame(today()->toDateString(), $invoices[0]->due_at->toDateString());
         $this->assertSame(today()->addMonthNoOverflow()->endOfMonth()->toDateString(), $invoices[1]->due_at->toDateString());
+
+        $customer = User::where('email', 'plan@example.com')->firstOrFail();
+        Notification::assertSentTo($customer, InvoiceCreated::class, function (InvoiceCreated $notification) use ($customer, $invoices) {
+            $mail = $notification->toMail($customer);
+            $content = implode("\n", $mail->introLines);
+
+            return str_contains($mail->subject, 'Vos factures')
+                && str_contains($content, $invoices[0]->number)
+                && str_contains($content, $invoices[1]->number)
+                && str_contains($content, 'Facture 1/2')
+                && str_contains($content, 'Facture 2/2');
+        });
     }
 
     public function test_guest_can_request_a_trial_lesson(): void
