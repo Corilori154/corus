@@ -19,6 +19,11 @@ class LessonSchedule
 
     public static function generate(DanceCourse $course): void
     {
+        if ($course->is_workshop) {
+            $course->lessons()->create(['lesson_date' => $course->start_date->toDateString()]);
+            return;
+        }
+
         $date = CarbonImmutable::parse($course->start_date);
         $end = CarbonImmutable::parse($course->end_date);
         $targetDay = self::DAYS[$course->day];

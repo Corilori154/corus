@@ -48,13 +48,13 @@ const timeValue = time => {
 };
 const groupedCourses = computed(() => {
     const groups = new Map();
-    filteredCourses.value.forEach(course => {
+    filteredCourses.value.filter(course => !course.is_workshop).forEach(course => {
         const key = normalizeDay(course.day);
         if (!groups.has(key)) groups.set(key, { key, label: course.day || 'Autres jours', courses: [] });
         groups.get(key).courses.push(course);
     });
 
-    return [...groups.values()]
+    const regularGroups = [...groups.values()]
         .map((group, index) => {
             const weekdayIndex = dayOrder.indexOf(group.key);
             return {
@@ -65,6 +65,10 @@ const groupedCourses = computed(() => {
             };
         })
         .sort((a, b) => a.order - b.order);
+    const workshops = filteredCourses.value.filter(course => course.is_workshop)
+        .sort((a, b) => a.start_date.localeCompare(b.start_date) || timeValue(a.time) - timeValue(b.time));
+    if (workshops.length) regularGroups.push({ key: 'stages', label: 'Stages', isWorkshop: true, courses: workshops, theme: { accent: '#d95f6f', soft: '#fce8e9', border: '#f2c3c8' } });
+    return regularGroups;
 });
 const openCourse = course => router.visit(`/ecole/${props.school.slug}/cours/${course.id}`);
 
@@ -222,11 +226,11 @@ function submit() {
                             <div class="flex items-center gap-4">
                                 <span class="h-11 w-1.5 rounded-full" :style="{ backgroundColor: group.theme.accent }"></span>
                                 <div>
-                                    <p class="text-[10px] font-bold uppercase tracking-[.2em] text-black/45">Planning du jour</p>
+                                    <p class="text-[10px] font-bold uppercase tracking-[.2em] text-black/45">{{ group.isWorkshop ? 'Événements ponctuels' : 'Planning du jour' }}</p>
                                     <h3 class="font-serif text-3xl capitalize sm:text-4xl">{{ group.label }}</h3>
                                 </div>
                             </div>
-                            <span class="rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold" :style="{ color: group.theme.accent }">{{ group.courses.length }} cours</span>
+                            <span class="rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold" :style="{ color: group.theme.accent }">{{ group.courses.length }} {{ group.isWorkshop ? 'stage' : 'cours' }}{{ group.courses.length > 1 ? 's' : '' }}</span>
                         </header>
 
                         <div class="grid gap-6 p-4 sm:p-5 md:grid-cols-2 lg:grid-cols-3">
@@ -240,12 +244,12 @@ function submit() {
                                 <div class="p-5 sm:p-6">
                                     <div class="mb-4 flex items-start justify-between gap-3">
                                         <div><p class="mb-1 text-xs font-bold uppercase tracking-[.16em] text-coral">{{ course.style }}</p><h4 class="font-serif text-2xl leading-tight transition group-hover:text-coral">{{ course.title }}</h4></div>
-                                        <span class="whitespace-nowrap text-lg font-bold">{{ Number(course.session_price).toLocaleString('fr-FR') }} CHF<small class="block text-right text-[10px] font-normal text-black/40">session complète</small></span>
+                                        <span class="whitespace-nowrap text-lg font-bold">{{ Number(course.session_price).toLocaleString('fr-FR') }} CHF<small class="block text-right text-[10px] font-normal text-black/40">{{ course.is_workshop ? 'prix du stage' : 'session complète' }}</small></span>
                                     </div>
                                     <p class="mb-4 line-clamp-2 min-h-10 text-sm leading-relaxed text-black/50">{{ course.description }}</p>
                                     <div class="mb-5 flex items-center gap-3 rounded-2xl p-3.5 text-sm" :style="{ backgroundColor: group.theme.soft }">
                                         <span class="grid h-9 w-9 place-items-center rounded-full bg-white">◷</span>
-                                        <div><strong>{{ course.day }} · {{ course.location }}</strong><p class="text-xs text-black/50">{{ course.time }} · {{ course.lessons.length }} leçons</p></div>
+                                        <div><strong>{{ course.is_workshop ? new Date(`${course.start_date}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : course.day }} · {{ course.location }}</strong><p class="text-xs text-black/50">{{ course.time }}{{ course.is_workshop ? '' : ` · ${course.lessons.length} leçons` }}</p></div>
                                     </div>
                                     <div class="flex items-center justify-between gap-4">
                                         <div class="min-w-0 flex-1">
@@ -291,9 +295,9 @@ function submit() {
                         </div>
                     </div>
                     <label v-if="selectedCourse.pricing_categories?.length" class="block text-sm font-semibold">Catégorie tarifaire<select v-model="form.pricing_category_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal focus:border-coral"><option value="">Tarif standard · {{ Number(selectedCourse.session_price).toLocaleString('fr-CH') }} CHF</option><option v-for="category in selectedCourse.pricing_categories" :key="category.id" :value="category.id">{{ category.name }} · {{ Number(category.pivot.price).toLocaleString('fr-CH') }} CHF</option></select><span v-if="form.errors.pricing_category_id" class="mt-1 block text-xs text-coral">{{ form.errors.pricing_category_id }}</span></label>
-                    <label v-if="paymentPlans.length" class="block text-sm font-semibold">Plan de paiement<select v-model="form.payment_plan_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal focus:border-coral"><option value="">Paiement en une fois</option><option v-for="plan in paymentPlans" :key="plan.id" :value="plan.id">{{ `${plan.name} · ${plan.installment_count} fois${Number(plan.adjustment_value) ? ` · ${plan.adjustment_direction === 'fee' ? '+' : '−'}${Number(plan.adjustment_value)}${plan.adjustment_mode === 'percentage' ? ' %' : ' CHF'}` : ''}` }}</option></select><span v-if="form.errors.payment_plan_id" class="mt-1 block text-xs text-coral">{{ form.errors.payment_plan_id }}</span></label>
+                    <label v-if="paymentPlans.length && !selectedCourse.is_workshop" class="block text-sm font-semibold">Plan de paiement<select v-model="form.payment_plan_id" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal focus:border-coral"><option value="">Paiement en une fois</option><option v-for="plan in paymentPlans" :key="plan.id" :value="plan.id">{{ `${plan.name} · ${plan.installment_count} fois${Number(plan.adjustment_value) ? ` · ${plan.adjustment_direction === 'fee' ? '+' : '−'}${Number(plan.adjustment_value)}${plan.adjustment_mode === 'percentage' ? ' %' : ' CHF'}` : ''}` }}</option></select><span v-if="form.errors.payment_plan_id" class="mt-1 block text-xs text-coral">{{ form.errors.payment_plan_id }}</span></label>
                     <fieldset v-if="selectedCourse.couple_mode"><legend class="text-sm font-semibold">Votre rôle</legend><div class="mt-2 grid grid-cols-2 gap-3"><label class="cursor-pointer rounded-xl border p-4 text-center transition" :class="form.dance_role === 'lead' ? 'border-purple-500 bg-purple-50 text-purple-800' : 'border-black/10'"><input v-model="form.dance_role" type="radio" value="lead" class="sr-only" /><strong>Lead</strong><span class="mt-1 block text-xs opacity-55">Je guide</span></label><label class="cursor-pointer rounded-xl border p-4 text-center transition" :class="form.dance_role === 'follow' ? 'border-purple-500 bg-purple-50 text-purple-800' : 'border-black/10'"><input v-model="form.dance_role" type="radio" value="follow" class="sr-only" /><strong>Follow</strong><span class="mt-1 block text-xs opacity-55">Je suis guidé·e</span></label></div><span v-if="form.errors.dance_role" class="mt-1 block text-xs text-coral">{{ form.errors.dance_role }}</span></fieldset>
-                    <label class="block text-sm font-semibold">Je souhaite commencer le<input v-model="form.start_date" type="date" :min="selectedCourse.start_date" :max="selectedCourse.end_date" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal focus:border-coral" /><span v-if="form.errors.start_date" class="mt-1 block text-xs text-coral">{{ form.errors.start_date }}</span></label>
+                    <label v-if="!selectedCourse.is_workshop" class="block text-sm font-semibold">Je souhaite commencer le<input v-model="form.start_date" type="date" :min="selectedCourse.start_date" :max="selectedCourse.end_date" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal focus:border-coral" /><span v-if="form.errors.start_date" class="mt-1 block text-xs text-coral">{{ form.errors.start_date }}</span></label>
                     <div v-if="priceQuote" class="rounded-2xl bg-ink p-4 text-white"><div class="flex items-end justify-between gap-4"><div><p class="text-xs text-white/50">{{ priceQuote.discountAmount > 0 ? `Tarif avec rabais multi-cours (${priceQuote.discountType === 'fixed' ? `${priceQuote.discountValue.toLocaleString('fr-CH', { minimumFractionDigits: 2 })} CHF fixe` : `${priceQuote.discountPercentage} %`})` : priceQuote.categoryName ? `Tarif ${priceQuote.categoryName}` : 'Tarif selon la date de début' }}</p><div class="mt-1 flex items-baseline gap-2"><span v-if="priceQuote.discountAmount > 0 || priceQuote.categoryDiscount > 0" class="text-sm text-white/40 line-through">{{ (priceQuote.categoryDiscount > 0 ? priceQuote.listAmount : priceQuote.baseAmount).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF</span><strong class="font-serif text-3xl">{{ priceQuote.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} CHF</strong></div></div><p class="text-right text-xs text-white/60">{{ priceQuote.remaining }} leçons restantes<br>sur {{ priceQuote.total }} planifiées</p></div><div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15"><div class="h-full rounded-full bg-coral" :style="{ width: `${priceQuote.total ? priceQuote.remaining / priceQuote.total * 100 : 0}%` }"></div></div><p v-if="priceQuote.categoryDiscount > 0" class="mt-2 text-xs font-semibold text-[#9de0b3]">✓ {{ priceQuote.categoryDiscount.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF de tarif {{ priceQuote.categoryName }}</p><p v-if="priceQuote.discountAmount > 0" class="mt-1 text-xs font-semibold text-[#9de0b3]">✓ {{ priceQuote.discountAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF de rabais multi-cours</p><p v-if="priceQuote.registrationFeeAmount > 0" class="mt-2 flex justify-between border-t border-white/15 pt-2 text-xs"><span>{{ priceQuote.registrationFeeName }}</span><strong>+ {{ priceQuote.registrationFeeAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} CHF</strong></p><p v-else-if="quoteLoading" class="mt-2 text-[10px] text-white/40">Vérification de vos rabais et frais…</p></div>
                     <div v-if="priceQuote?.installmentCount > 1" class="rounded-xl bg-[#eef0f8] p-4 text-sm text-[#31395d]"><strong>{{ priceQuote.paymentPlanName }} : {{ priceQuote.installmentCount }} échéances de {{ priceQuote.installmentAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF</strong><p v-if="priceQuote.paymentAdjustment" class="mt-1 text-xs opacity-65">{{ priceQuote.paymentAdjustment > 0 ? 'Frais ajoutés' : 'Remise appliquée' }} : {{ Math.abs(priceQuote.paymentAdjustment).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }} CHF</p></div>
                     <label class="block text-sm font-semibold">Commentaire <span class="font-normal text-black/35">(facultatif)</span><textarea v-model="form.comment" rows="3" maxlength="2000" class="mt-2 w-full resize-none rounded-xl border border-black/10 px-4 py-3 font-normal" placeholder="Une information utile pour l’école…"></textarea><span v-if="form.errors.comment" class="mt-1 block text-xs text-coral">{{ form.errors.comment }}</span></label>

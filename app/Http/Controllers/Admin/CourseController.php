@@ -61,7 +61,7 @@ class CourseController extends Controller
                 'complete' => $school->hasCompleteBillingSettings(),
             ],
             'administrators' => $school->users()->where('is_admin', true)->orderBy('name')->get(['id', 'name', 'email']),
-            'paymentReminderSettings' => $school->only('payment_reminders_enabled', 'payment_reminder_delay_days', 'payment_reminder_interval_days', 'payment_reminder_max_count', 'payment_reminder_fee'),
+            'paymentReminderSettings' => ['payment_reminders_enabled' => $school->payment_reminders_enabled, 'payment_reminder_steps' => $school->paymentReminderSteps()],
             'termsAndConditions' => $school->terms_and_conditions,
             'registrationFeeSettings' => $school->only('registration_fee_enabled', 'registration_fee_name', 'registration_fee_amount'),
             'contactButtonSettings' => $school->only('contact_button_label', 'contact_button_url'),
@@ -188,7 +188,8 @@ class CourseController extends Controller
         $data = $this->storeCourseImage($request, $data);
         $categoryPrices = $data['category_prices'] ?? [];
         unset($data['category_prices']);
-        $scheduleChanged = $course->day !== $data['day']
+        $scheduleChanged = $course->is_workshop !== $data['is_workshop']
+            || $course->day !== $data['day']
             || $course->start_date->toDateString() !== $data['start_date']
             || $course->end_date->toDateString() !== $data['end_date'];
         $enrolled = max(0, $course->capacity - $course->places);
@@ -222,6 +223,7 @@ class CourseController extends Controller
         $schoolId = $request->user()->school_id;
         $data = $request->validate([
             'title' => ['required', 'string', 'max:120'],
+            'is_workshop' => ['sometimes', 'boolean'],
             'season_id' => ['required', Rule::exists('seasons', 'id')->where('school_id', $schoolId)],
             'dance_discipline_id' => ['required', Rule::exists('dance_disciplines', 'id')->where('school_id', $schoolId)],
             'dance_level_id' => ['required', Rule::exists('dance_levels', 'id')->where('school_id', $schoolId)],
@@ -258,6 +260,14 @@ class CourseController extends Controller
         ]);
 
         $data['waitlist_invitation_hours'] ??= 72;
+        $data['is_workshop'] = (bool) ($data['is_workshop'] ?? false);
+        if ($data['is_workshop']) {
+            $data['end_date'] = $data['start_date'];
+            $data['day'] = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'][\Carbon\CarbonImmutable::parse($data['start_date'])->isoWeekday() - 1];
+            $data['price'] = $data['session_price'];
+            $data['category_prices'] = [];
+            $data['trial_enabled'] = false;
+        }
         $data['trial_enabled'] ??= true;
         $data['trial_is_free'] ??= true;
         $data['trial_price'] = ! $data['trial_enabled'] || $data['trial_is_free'] ? 0 : ($data['trial_price'] ?? 0);

@@ -29,13 +29,12 @@ class PaymentReminderService
             if (! $invoice || ! $invoice->school->payment_reminders_enabled || $invoice->balance <= 0) return false;
 
             $school = $invoice->school;
-            if ($invoice->reminder_count >= $school->payment_reminder_max_count) return false;
-            $dueAt = $invoice->reminder_count === 0
-                ? $invoice->due_at->addDays($school->payment_reminder_delay_days)->startOfDay()
-                : $invoice->last_reminder_at?->addDays($school->payment_reminder_interval_days);
-            if (! $dueAt || now()->lt($dueAt)) return false;
+            $step = $school->paymentReminderSteps()[$invoice->reminder_count] ?? null;
+            if (! $step) return false;
+            $dueAt = $invoice->due_at->copy()->addDays((int) $step['delay_days'])->startOfDay();
+            if (now()->lt($dueAt)) return false;
 
-            $fee = (float) $school->payment_reminder_fee;
+            $fee = (float) $step['fee'];
             $invoice->update([
                 'amount' => round((float) $invoice->amount + $fee, 2),
                 'reminder_fees_total' => round((float) $invoice->reminder_fees_total + $fee, 2),

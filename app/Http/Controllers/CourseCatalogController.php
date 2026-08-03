@@ -49,7 +49,9 @@ class CourseCatalogController extends Controller
             'school' => $school->only('name', 'slug', 'city', 'email', 'phone', 'accent', 'terms_and_conditions', 'contact_button_label', 'contact_button_url'),
             'course' => $course->load(['lessons:id,dance_course_id,lesson_date', 'pricingCategories']),
             'pricingCategories' => $course->pricingCategories,
-            'paymentPlans' => PaymentPlan::where('school_id', $school->id)->where('is_active', true)->orderBy('installment_count')->get(),
+            'paymentPlans' => $course->is_workshop
+                ? []
+                : PaymentPlan::where('school_id', $school->id)->where('is_active', true)->orderBy('installment_count')->get(),
         ]);
     }
 
@@ -82,6 +84,11 @@ class CourseCatalogController extends Controller
         $data['is_minor'] ??= false;
 
         $course = $school->courses()->with('lessons')->where('is_active', true)->findOrFail($data['course_id']);
+        if ($course->is_workshop) {
+            $data['start_date'] = $course->start_date->toDateString();
+            $data['pricing_category_id'] = null;
+            $data['payment_plan_id'] = null;
+        }
 
         if ($course->couple_mode && empty($data['dance_role'])) {
             throw ValidationException::withMessages([
@@ -102,7 +109,7 @@ class CourseCatalogController extends Controller
         $listAmount = $totalLessons > 0
             ? round((float) $course->session_price * $remainingLessons / $totalLessons, 2)
             : 0;
-        $category = ! empty($data['pricing_category_id']) ? $course->pricingCategories()->find($data['pricing_category_id']) : null;
+        $category = ! $course->is_workshop && ! empty($data['pricing_category_id']) ? $course->pricingCategories()->find($data['pricing_category_id']) : null;
         if (! empty($data['pricing_category_id']) && ! $category) {
             throw ValidationException::withMessages(['pricing_category_id' => 'Cette catégorie tarifaire n’est pas disponible pour ce cours.']);
         }
@@ -265,6 +272,11 @@ class CourseCatalogController extends Controller
             'payment_plan_id' => ['nullable', Rule::exists('payment_plans', 'id')->where(fn ($query) => $query->where('school_id', $school->id)->where('is_active', true))],
         ]);
         $course = $school->courses()->with('lessons')->where('is_active', true)->findOrFail($data['course_id']);
+        if ($course->is_workshop) {
+            $data['start_date'] = $course->start_date->toDateString();
+            $data['pricing_category_id'] = null;
+            $data['payment_plan_id'] = null;
+        }
 
         if ($data['start_date'] < $course->start_date->toDateString() || $data['start_date'] > $course->end_date->toDateString()) {
             throw ValidationException::withMessages(['start_date' => 'Date hors de la session.']);
@@ -277,7 +289,7 @@ class CourseCatalogController extends Controller
         $listAmount = $totalLessons > 0
             ? round((float) $course->session_price * $remainingLessons / $totalLessons, 2)
             : 0;
-        $category = ! empty($data['pricing_category_id']) ? $course->pricingCategories()->find($data['pricing_category_id']) : null;
+        $category = ! $course->is_workshop && ! empty($data['pricing_category_id']) ? $course->pricingCategories()->find($data['pricing_category_id']) : null;
         if (! empty($data['pricing_category_id']) && ! $category) {
             throw ValidationException::withMessages(['pricing_category_id' => 'Cette catégorie tarifaire n’est pas disponible pour ce cours.']);
         }
@@ -345,10 +357,14 @@ class CourseCatalogController extends Controller
 
     private function multiCoursePricing(School $school, DanceCourse $course, string $email, float $baseAmount, bool $lock = false): array
     {
+        if ($course->is_workshop) {
+            return ['amount' => $baseAmount, 'discount_amount' => 0, 'discount_percentage' => 0, 'discount_type' => 'percentage', 'discount_value' => 0, 'course_count' => 1];
+        }
+
         $query = $school->enrollments()
             ->where('email', $email)
             ->whereNotIn('status', ['waitlist', 'expired'])
-            ->whereHas('course', fn ($courseQuery) => $courseQuery->where('season_id', $course->season_id));
+            ->whereHas('course', fn ($courseQuery) => $courseQuery->where('season_id', $course->season_id)->where('is_workshop', false));
         $previousEnrollments = ($lock ? $query->lockForUpdate() : $query)->get();
         $newCourseCount = $previousEnrollments->count() + 1;
         $rule = $school->discountRules()
