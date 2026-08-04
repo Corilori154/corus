@@ -1,12 +1,29 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { Head, router, useForm } from '@inertiajs/vue3';
 
-defineProps({ course: Object, trialRequests: Array, stats: Object });
+defineProps({ course: Object, courses: Array, trialRequests: Array, stats: Object });
 const money = value => Number(value || 0).toLocaleString('fr-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const date = value => value ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-CH') : '—';
 const statusLabel = status => ({ accepted: 'Inscrit', waitlist: 'Liste d’attente', invited: 'Invitation envoyée', expired: 'Expirée' }[status] || 'En traitement');
 const statusClass = status => status === 'accepted' ? 'bg-green-50 text-green-700' : status === 'invited' ? 'bg-blue-50 text-blue-700' : status === 'waitlist' ? 'bg-purple-50 text-purple-700' : 'bg-black/5 text-black/45';
 const logout = () => router.post('/admin/deconnexion');
+const editedEnrollment = ref(null);
+const enrollmentForm = useForm({ first_name: '', last_name: '', email: '', phone: '', dance_course_id: null, start_date: '', dance_role: null, comment: '' });
+const openEnrollmentEdit = item => {
+    editedEnrollment.value = item;
+    enrollmentForm.clearErrors();
+    Object.assign(enrollmentForm, {
+        first_name: item.first_name || '', last_name: item.last_name || '', email: item.email || '',
+        phone: item.phone || '', dance_course_id: item.dance_course_id, start_date: String(item.start_date || '').slice(0, 10),
+        dance_role: item.dance_role || null, comment: item.comment || '',
+    });
+};
+const closeEnrollmentEdit = () => { if (!enrollmentForm.processing) editedEnrollment.value = null; };
+const updateEnrollment = () => enrollmentForm.put(`/admin/inscriptions/${editedEnrollment.value.id}`, {
+    preserveScroll: true,
+    onSuccess: () => { editedEnrollment.value = null; },
+});
 </script>
 
 <template>
@@ -57,11 +74,28 @@ const logout = () => router.post('/admin/deconnexion');
                 <div class="space-y-6">
                     <section class="overflow-hidden rounded-3xl bg-white"><div class="border-b border-black/5 px-6 py-5"><h2 class="font-serif text-2xl">Calendrier des leçons</h2><p class="mt-1 text-xs text-black/45">{{ course.lessons.length }} leçons programmées</p></div><div v-if="course.lessons.length" class="grid gap-2 p-6 sm:grid-cols-2 lg:grid-cols-3"><div v-for="(lesson, index) in course.lessons" :key="lesson.id" class="rounded-2xl bg-[#f7f5f0] p-4"><span class="text-[10px] font-bold uppercase text-black/35">Leçon {{ index + 1 }}</span><strong class="mt-1 block text-sm">{{ date(lesson.lesson_date) }}</strong></div></div><div v-else class="p-10 text-center text-black/40">Aucune leçon planifiée.</div></section>
 
-                    <section class="overflow-hidden rounded-3xl bg-white"><div class="border-b border-black/5 px-6 py-5"><h2 class="font-serif text-2xl">Inscriptions</h2><p class="mt-1 text-xs text-black/45">Participants et état de leur inscription</p></div><div v-if="course.enrollments.length" class="overflow-x-auto"><table class="w-full min-w-[760px] text-left"><thead class="bg-[#f7f5f0] text-[10px] font-bold uppercase tracking-wider text-black/45"><tr><th class="px-6 py-4">Élève</th><th class="px-5 py-4">Rôle</th><th class="px-5 py-4">Début</th><th class="px-5 py-4">Montant</th><th class="px-6 py-4">Statut</th></tr></thead><tbody class="divide-y divide-black/5"><tr v-for="item in course.enrollments" :key="item.id"><td class="px-6 py-4"><strong>{{ item.first_name }} {{ item.last_name }}</strong><p class="text-xs text-black/40">{{ item.email }}<span v-if="item.phone"> · {{ item.phone }}</span></p><p v-if="item.is_minor" class="mt-1 text-xs font-semibold text-purple-700">Mineur · Représentant légal : {{ item.legal_guardian_first_name }} {{ item.legal_guardian_last_name }}</p></td><td class="px-5 py-4 text-sm">{{ item.dance_role || '—' }}</td><td class="px-5 py-4 text-sm">{{ date(item.start_date) }}</td><td class="px-5 py-4 font-semibold">{{ money(item.amount) }} CHF</td><td class="px-6 py-4"><span class="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</span></td></tr></tbody></table></div><div v-else class="p-12 text-center text-black/40">Aucune inscription pour ce cours.</div></section>
+                    <section class="overflow-hidden rounded-3xl bg-white"><div class="border-b border-black/5 px-6 py-5"><h2 class="font-serif text-2xl">Inscriptions</h2><p class="mt-1 text-xs text-black/45">Participants et état de leur inscription</p></div><div v-if="course.enrollments.length" class="overflow-x-auto"><table class="w-full min-w-[860px] text-left"><thead class="bg-[#f7f5f0] text-[10px] font-bold uppercase tracking-wider text-black/45"><tr><th class="px-6 py-4">Élève</th><th class="px-5 py-4">Rôle</th><th class="px-5 py-4">Début</th><th class="px-5 py-4">Montant</th><th class="px-5 py-4">Statut</th><th class="px-6 py-4 text-right">Action</th></tr></thead><tbody class="divide-y divide-black/5"><tr v-for="item in course.enrollments" :key="item.id"><td class="px-6 py-4"><strong>{{ item.first_name }} {{ item.last_name }}</strong><p class="text-xs text-black/40">{{ item.email }}<span v-if="item.phone"> · {{ item.phone }}</span></p><p v-if="item.is_minor" class="mt-1 text-xs font-semibold text-purple-700">Mineur · Représentant légal : {{ item.legal_guardian_first_name }} {{ item.legal_guardian_last_name }}</p></td><td class="px-5 py-4 text-sm">{{ item.dance_role || '—' }}</td><td class="px-5 py-4 text-sm">{{ date(item.start_date) }}</td><td class="px-5 py-4 font-semibold">{{ money(item.amount) }} CHF</td><td class="px-5 py-4"><span class="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</span></td><td class="px-6 py-4 text-right"><button type="button" class="rounded-full border border-black/10 px-4 py-2 text-xs font-bold transition hover:border-coral hover:text-coral" @click="openEnrollmentEdit(item)">Modifier</button></td></tr></tbody></table></div><div v-else class="p-12 text-center text-black/40">Aucune inscription pour ce cours.</div></section>
 
                     <section class="overflow-hidden rounded-3xl bg-white"><div class="border-b border-black/5 px-6 py-5"><h2 class="font-serif text-2xl">Demandes de cours d’essai</h2></div><div v-if="trialRequests.length" class="divide-y divide-black/5"><div v-for="trial in trialRequests" :key="trial.id" class="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-center"><div><strong>{{ trial.first_name }} {{ trial.last_name }}</strong><p class="mt-1 text-xs text-black/40">{{ trial.email }}<span v-if="trial.phone"> · {{ trial.phone }}</span></p><p v-if="trial.message" class="mt-2 text-sm italic text-black/55">« {{ trial.message }} »</p></div><div class="sm:text-right"><strong class="text-sm">{{ date(trial.preferred_date) }}</strong><p class="mt-1 text-xs text-black/40">{{ trial.trial_is_free ? 'Gratuit' : `${money(trial.trial_price)} CHF` }}</p></div></div></div><div v-else class="p-12 text-center text-black/40">Aucune demande d’essai.</div></section>
                 </div>
             </div>
         </main>
+
+        <div v-if="editedEnrollment" class="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" @click.self="closeEnrollmentEdit">
+            <form class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl sm:p-8" @submit.prevent="updateEnrollment">
+                <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-coral">Inscription</p><h2 class="mt-2 font-serif text-3xl">Modifier l’inscription</h2></div><button type="button" class="grid h-10 w-10 place-items-center rounded-full bg-black/5 text-xl" aria-label="Fermer" @click="closeEnrollmentEdit">×</button></div>
+                <div class="mt-7 grid gap-5 sm:grid-cols-2">
+                    <label class="block text-sm font-semibold sm:col-span-2">Cours<select v-model="enrollmentForm.dance_course_id" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal"><option v-for="availableCourse in courses" :key="availableCourse.id" :value="availableCourse.id">{{ availableCourse.title }} · {{ availableCourse.day }} {{ availableCourse.time }} · {{ availableCourse.places }} place(s)</option></select><span v-if="enrollmentForm.errors.dance_course_id" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.dance_course_id }}</span><span class="mt-1 block text-xs font-normal text-black/40">Le changement de cours ne recalcule pas les montants déjà facturés.</span></label>
+                    <label class="block text-sm font-semibold">Prénom<input v-model="enrollmentForm.first_name" type="text" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="enrollmentForm.errors.first_name" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.first_name }}</span></label>
+                    <label class="block text-sm font-semibold">Nom<input v-model="enrollmentForm.last_name" type="text" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="enrollmentForm.errors.last_name" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.last_name }}</span></label>
+                    <label class="block text-sm font-semibold">E-mail<input v-model="enrollmentForm.email" type="email" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="enrollmentForm.errors.email" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.email }}</span></label>
+                    <label class="block text-sm font-semibold">Téléphone<input v-model="enrollmentForm.phone" type="text" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="enrollmentForm.errors.phone" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.phone }}</span></label>
+                    <label class="block text-sm font-semibold">Date de début<input v-model="enrollmentForm.start_date" type="date" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="enrollmentForm.errors.start_date" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.start_date }}</span></label>
+                    <label class="block text-sm font-semibold">Rôle<select v-model="enrollmentForm.dance_role" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal"><option :value="null">Aucun</option><option value="lead">Lead</option><option value="follow">Follow</option></select><span v-if="enrollmentForm.errors.dance_role" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.dance_role }}</span></label>
+                    <label class="block text-sm font-semibold sm:col-span-2">Commentaire<textarea v-model="enrollmentForm.comment" rows="4" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal"></textarea><span v-if="enrollmentForm.errors.comment" class="mt-1 block text-xs text-red-600">{{ enrollmentForm.errors.comment }}</span></label>
+                </div>
+                <div class="mt-7 flex justify-end gap-3"><button type="button" class="rounded-full border border-black/10 px-5 py-3 text-sm font-bold" @click="closeEnrollmentEdit">Annuler</button><button type="submit" class="rounded-full bg-coral px-6 py-3 text-sm font-bold text-white disabled:opacity-50" :disabled="enrollmentForm.processing">{{ enrollmentForm.processing ? 'Enregistrement…' : 'Enregistrer' }}</button></div>
+            </form>
+        </div>
     </div>
 </template>

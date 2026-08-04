@@ -14,6 +14,34 @@ class AdminEnrollmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_can_update_an_enrollment(): void
+    {
+        $school = School::factory()->create();
+        $admin = User::factory()->create(['school_id' => $school->id, 'is_admin' => true]);
+        $student = User::factory()->create(['school_id' => $school->id, 'name' => 'Ancien Nom', 'email' => 'old@example.ch']);
+        $course = DanceCourse::factory()->for($school)->create(['capacity' => 10, 'places' => 9]);
+        $newCourse = DanceCourse::factory()->for($school)->create(['capacity' => 8, 'places' => 8]);
+        $enrollment = Enrollment::create([
+            'school_id' => $school->id, 'user_id' => $student->id, 'dance_course_id' => $course->id,
+            'first_name' => 'Ancien', 'last_name' => 'Nom', 'email' => 'old@example.ch', 'phone' => '+41790000000',
+            'start_date' => '2026-09-01', 'lessons_count' => 10, 'base_amount' => 200, 'amount' => 200, 'status' => 'accepted',
+        ]);
+
+        $this->actingAs($admin)->put("/admin/inscriptions/{$enrollment->id}", [
+            'first_name' => 'Nouveau', 'last_name' => 'Nom', 'email' => 'new@example.ch',
+            'phone' => '+41791111111', 'dance_course_id' => $newCourse->id,
+            'start_date' => '2026-09-08', 'dance_role' => 'follow', 'comment' => 'Modification admin',
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseHas('enrollments', [
+            'id' => $enrollment->id, 'dance_course_id' => $newCourse->id, 'first_name' => 'Nouveau', 'email' => 'new@example.ch',
+            'phone' => '+41791111111', 'dance_role' => 'follow', 'comment' => 'Modification admin',
+        ]);
+        $this->assertDatabaseHas('users', ['id' => $student->id, 'name' => 'Nouveau Nom', 'email' => 'new@example.ch']);
+        $this->assertSame(10, $course->fresh()->places);
+        $this->assertSame(7, $newCourse->fresh()->places);
+    }
+
     public function test_admin_can_cancel_an_enrollment_and_its_invoice(): void
     {
         $school = School::factory()->create();

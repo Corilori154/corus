@@ -120,6 +120,9 @@ class CourseController extends Controller
 
         return Inertia::render('Admin/Courses/Show', [
             'course' => $course,
+            'courses' => $request->user()->school->courses()
+                ->orderBy('title')
+                ->get(['id', 'title', 'day', 'time', 'places', 'capacity', 'is_active']),
             'trialRequests' => $trials,
             'stats' => [
                 'confirmed' => $confirmed->count(),

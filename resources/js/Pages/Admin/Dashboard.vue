@@ -183,7 +183,7 @@ function selectCourseImage(event) {
 
             <CoursesTable v-if="activeView === 'courses'" :courses="courses" @edit="openEdit" @delete="deleteCourse" @remove-lesson="removeLesson" />
 
-            <EnrollmentsTable v-else-if="activeView === 'enrollments'" :enrollments="enrollments" />
+            <EnrollmentsTable v-else-if="activeView === 'enrollments'" :enrollments="enrollments" :courses="courses" />
 
             <WaitlistPanel v-else-if="activeView === 'waitlist'" :enrollments="enrollments" />
 

@@ -25,14 +25,50 @@ class EnrollmentController extends Controller
             'last_name' => ['required', 'string', 'max:80'],
             'email' => ['required', 'email', 'max:150', $enrollment->user_id ? Rule::unique('users', 'email')->ignore($enrollment->user_id) : Rule::unique('users', 'email')],
             'phone' => ['required', 'string', 'min:6', 'max:30'],
+            'dance_course_id' => [
+                'required',
+                'integer',
+                Rule::exists('dance_courses', 'id')->where('school_id', $enrollment->school_id),
+            ],
             'start_date' => ['required', 'date'],
             'dance_role' => ['nullable', 'in:lead,follow'],
             'comment' => ['nullable', 'string', 'max:2000'],
         ]);
 
         DB::transaction(function () use ($enrollment, $data) {
-            $enrollment->update($data);
-            $enrollment->user?->update([
+            $lockedEnrollment = Enrollment::whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
+            $oldCourseId = $lockedEnrollment->dance_course_id;
+            $newCourseId = (int) $data['dance_course_id'];
+
+            if ($oldCourseId !== $newCourseId) {
+                $courses = DanceCourse::whereIn('id', [$oldCourseId, $newCourseId])
+                    ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+                $oldCourse = $courses->get($oldCourseId);
+                $newCourse = $courses->get($newCourseId);
+                $occupiesPlace = in_array($lockedEnrollment->status, ['accepted', 'pending', 'invited'], true);
+
+                if ($occupiesPlace && (! $newCourse || $newCourse->places < 1)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'dance_course_id' => 'Ce cours ne dispose plus de place disponible.',
+                    ]);
+                }
+
+                $duplicate = Enrollment::where('dance_course_id', $newCourseId)
+                    ->where('email', $data['email'])->whereKeyNot($lockedEnrollment->id)->exists();
+                if ($duplicate) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'dance_course_id' => 'Cette personne possède déjà une inscription à ce cours.',
+                    ]);
+                }
+
+                if ($occupiesPlace) {
+                    $oldCourse?->update(['places' => min($oldCourse->capacity, $oldCourse->places + 1)]);
+                    $newCourse->decrement('places');
+                }
+            }
+
+            $lockedEnrollment->update($data);
+            $lockedEnrollment->user?->update([
                 'name' => trim($data['first_name'].' '.$data['last_name']),
                 'email' => $data['email'],
             ]);
