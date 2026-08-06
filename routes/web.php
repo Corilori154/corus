@@ -87,6 +87,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('/conditions-generales', [TermsSettingsController::class, 'update'])->name('terms.update');
     Route::put('/frais-inscription', [RegistrationFeeSettingsController::class, 'update'])->name('registration-fees.update');
     Route::put('/bouton-contact', [ContactButtonSettingsController::class, 'update'])->name('contact-button.update');
+    Route::post('/factures', [InvoiceController::class, 'store'])->name('invoices.store');
     Route::get('/factures/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::put('/factures/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
     Route::delete('/factures/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');

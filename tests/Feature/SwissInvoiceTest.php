@@ -15,6 +15,55 @@ class SwissInvoiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_can_create_an_invoice_manually_for_an_enrollment(): void
+    {
+        $school = School::factory()->create(['invoice_prefix' => 'MAN']);
+        $admin = User::factory()->create(['school_id' => $school->id, 'is_admin' => true]);
+        $course = DanceCourse::factory()->for($school)->create();
+        $enrollment = Enrollment::create([
+            'school_id' => $school->id, 'dance_course_id' => $course->id,
+            'first_name' => 'Lina', 'last_name' => 'Meier', 'email' => 'lina@example.ch',
+            'start_date' => '2026-09-01', 'lessons_count' => 1, 'base_amount' => 120,
+            'amount' => 120, 'installment_amount' => 120, 'installment_count' => 1, 'status' => 'confirmed',
+        ]);
+
+        $response = $this->actingAs($admin)->post('/admin/factures', [
+            'enrollment_id' => $enrollment->id,
+            'amount' => 89.90,
+            'issued_at' => '2026-08-06',
+            'due_at' => '2026-08-31',
+        ]);
+
+        $invoice = $school->invoices()->firstOrFail();
+        $response->assertRedirect(route('admin.invoices.show', $invoice));
+        $this->assertSame('MAN-2026-'.str_pad((string) $invoice->id, 6, '0', STR_PAD_LEFT), $invoice->number);
+        $this->assertDatabaseHas('invoices', [
+            'id' => $invoice->id, 'enrollment_id' => $enrollment->id, 'amount' => 89.90,
+            'issued_at' => '2026-08-06', 'due_at' => '2026-08-31', 'status' => 'open',
+        ]);
+    }
+
+    public function test_admin_cannot_create_an_invoice_for_another_schools_enrollment(): void
+    {
+        $school = School::factory()->create();
+        $admin = User::factory()->create(['school_id' => $school->id, 'is_admin' => true]);
+        $otherSchool = School::factory()->create();
+        $course = DanceCourse::factory()->for($otherSchool)->create();
+        $enrollment = Enrollment::create([
+            'school_id' => $otherSchool->id, 'dance_course_id' => $course->id,
+            'first_name' => 'Noa', 'last_name' => 'Rossi', 'email' => 'noa@example.ch',
+            'start_date' => '2026-09-01', 'lessons_count' => 1, 'base_amount' => 100,
+            'amount' => 100, 'installment_amount' => 100, 'installment_count' => 1, 'status' => 'confirmed',
+        ]);
+
+        $this->actingAs($admin)->post('/admin/factures', [
+            'enrollment_id' => $enrollment->id, 'amount' => 50,
+            'issued_at' => '2026-08-06', 'due_at' => '2026-08-31',
+        ])->assertSessionHasErrors('enrollment_id');
+
+        $this->assertDatabaseCount('invoices', 0);
+    }
+
     public function test_admin_can_manage_and_open_the_swiss_qr_invoice_document(): void
     {
         $school = School::factory()->create();

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
+use App\Models\Enrollment;
 use App\Services\InvoiceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,37 @@ use Inertia\Response;
 
 class InvoiceController extends Controller
 {
+    public function store(Request $request): RedirectResponse
+    {
+        $school = $request->user()->school;
+        $data = $request->validate([
+            'enrollment_id' => ['required', Rule::exists('enrollments', 'id')->where('school_id', $school->id)],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
+            'issued_at' => ['required', 'date'],
+            'due_at' => ['required', 'date', 'after_or_equal:issued_at'],
+        ]);
+
+        $invoice = DB::transaction(function () use ($data, $school) {
+            $enrollment = Enrollment::where('school_id', $school->id)->lockForUpdate()->findOrFail($data['enrollment_id']);
+            $nextInstallment = ((int) $enrollment->invoices()->max('installment_number')) + 1;
+            $invoice = $school->invoices()->create([
+                'enrollment_id' => $enrollment->id,
+                'installment_number' => $nextInstallment,
+                'installment_count' => $nextInstallment,
+                'amount' => $data['amount'],
+                'currency' => 'CHF',
+                'issued_at' => $data['issued_at'],
+                'due_at' => $data['due_at'],
+                'status' => 'open',
+            ]);
+            $invoice->update(['number' => sprintf('%s-%s-%06d', strtoupper($school->invoice_prefix ?: 'FAC'), now()->format('Y'), $invoice->id)]);
+            $enrollment->invoices()->update(['installment_count' => $nextInstallment]);
+            return $invoice;
+        });
+
+        return redirect()->route('admin.invoices.show', $invoice)->with('success', "La facture {$invoice->number} a été créée.");
+    }
+
     public function update(Request $request, Invoice $invoice): RedirectResponse
     {
         $this->authorizeInvoice($request, $invoice);

@@ -2,8 +2,9 @@
 import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 
-const props = defineProps({ invoices: Array, billingSettings: Object });
+const props = defineProps({ invoices: Array, enrollments: Array, billingSettings: Object });
 const showSettings = ref(false);
+const showCreate = ref(false);
 const paymentInvoice = ref(null);
 const search = ref(''); const status = ref('all'); const course = ref('all'); const from = ref(''); const to = ref('');
 const billing = useForm({
@@ -13,6 +14,10 @@ const billing = useForm({
     billing_iban: props.billingSettings.billing_iban || '', invoice_prefix: props.billingSettings.invoice_prefix || 'FAC', invoice_due_days: props.billingSettings.invoice_due_days ?? 30,
 });
 const payment = useForm({ amount: '', paid_on: new Date().toISOString().slice(0, 10), method: 'bank_transfer', note: '' });
+const today = new Date().toISOString().slice(0, 10);
+const dueDate = new Date(Date.now() + Number(props.billingSettings.invoice_due_days ?? 30) * 86400000).toISOString().slice(0, 10);
+const createForm = useForm({ enrollment_id: '', amount: '', issued_at: today, due_at: dueDate });
+const invoiceEnrollments = computed(() => props.enrollments.filter(item => !['waitlist', 'invited', 'expired'].includes(item.status)));
 const courses = computed(() => [...new Map(props.invoices.map(i => [i.enrollment.course?.id, i.enrollment.course]).filter(([id]) => id)).values()]);
 const filtered = computed(() => props.invoices.filter(i => {
     const q = search.value.trim().toLocaleLowerCase('fr');
@@ -42,11 +47,32 @@ function editInvoice(invoice) {
 function deleteInvoice(invoice) {
     if (confirm(`Supprimer définitivement la facture ${invoice.number} et tous ses paiements ?`)) router.delete(`/admin/factures/${invoice.id}`, { preserveScroll: true });
 }
+function openCreateInvoice() {
+    createForm.defaults({ enrollment_id: '', amount: '', issued_at: today, due_at: dueDate });
+    createForm.reset();
+    createForm.clearErrors();
+    showCreate.value = true;
+}
+function submitInvoice() {
+    createForm.post('/admin/factures', { onSuccess: () => { showCreate.value = false; } });
+}
 </script>
 
 <template>
   <section class="space-y-6">
-    <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-coral">Gestion financière</p><h2 class="mt-1 font-serif text-4xl">Factures</h2><p class="mt-1 text-sm text-black/45">Suivez les montants facturés, les acomptes et les soldes restant à encaisser.</p></div><button @click="showSettings = !showSettings" class="rounded-full bg-ink px-5 py-3 text-sm font-bold text-white hover:bg-coral">⚙ Configurer les données de paiement</button></div>
+    <div v-if="showCreate" class="fixed inset-0 z-50 grid place-items-center bg-black/45 p-5 backdrop-blur-sm" @click.self="showCreate = false">
+      <form @submit.prevent="submitInvoice" class="w-full max-w-xl rounded-3xl bg-white p-7 shadow-2xl">
+        <div class="flex items-start justify-between"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-coral">Nouvelle facture</p><h3 class="mt-1 font-serif text-3xl">Créer manuellement</h3><p class="mt-2 text-sm text-black/45">La facture sera disponible immédiatement, sans être envoyée automatiquement.</p></div><button type="button" @click="showCreate = false" class="grid h-9 w-9 place-items-center rounded-full bg-black/5">×</button></div>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          <label class="text-sm font-semibold sm:col-span-2">Élève et cours<select v-model="createForm.enrollment_id" required class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option value="" disabled>Sélectionner une inscription</option><option v-for="item in invoiceEnrollments" :key="item.id" :value="item.id">{{ item.first_name }} {{ item.last_name }} — {{ item.course?.title }}</option></select><span v-if="createForm.errors.enrollment_id" class="mt-1 block text-xs text-red-600">{{ createForm.errors.enrollment_id }}</span></label>
+          <label class="text-sm font-semibold">Montant CHF<input v-model="createForm.amount" required type="number" min="0.01" step="0.01" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="createForm.errors.amount" class="mt-1 block text-xs text-red-600">{{ createForm.errors.amount }}</span></label>
+          <label class="text-sm font-semibold">Date d’émission<input v-model="createForm.issued_at" required type="date" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="createForm.errors.issued_at" class="mt-1 block text-xs text-red-600">{{ createForm.errors.issued_at }}</span></label>
+          <label class="text-sm font-semibold sm:col-span-2">Date d’échéance<input v-model="createForm.due_at" required type="date" :min="createForm.issued_at" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /><span v-if="createForm.errors.due_at" class="mt-1 block text-xs text-red-600">{{ createForm.errors.due_at }}</span></label>
+        </div>
+        <div class="mt-6 flex gap-3"><button type="button" @click="showCreate = false" class="flex-1 rounded-full border border-black/10 py-3 font-bold">Annuler</button><button :disabled="createForm.processing" class="flex-1 rounded-full bg-coral py-3 font-bold text-white disabled:opacity-50">Créer la facture</button></div>
+      </form>
+    </div>
+    <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-coral">Gestion financière</p><h2 class="mt-1 font-serif text-4xl">Factures</h2><p class="mt-1 text-sm text-black/45">Suivez les montants facturés, les acomptes et les soldes restant à encaisser.</p></div><div class="flex flex-wrap gap-3"><button @click="openCreateInvoice" class="rounded-full bg-coral px-5 py-3 text-sm font-bold text-white hover:bg-ink">＋ Créer une facture</button><button @click="showSettings = !showSettings" class="rounded-full bg-ink px-5 py-3 text-sm font-bold text-white hover:bg-coral">⚙ Configurer les données de paiement</button></div></div>
 
     <div v-if="showSettings" class="rounded-3xl bg-white p-6"><div class="flex items-center justify-between"><div><h3 class="font-serif text-2xl">Données de paiement Swiss QR</h3><p class="mt-1 text-xs text-black/45">Adresse structurée et IBAN utilisés sur toutes les factures de l’école.</p></div><span class="rounded-full px-3 py-1 text-xs font-bold" :class="billingSettings.complete ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'">{{ billingSettings.complete ? 'Configuré' : 'À compléter' }}</span></div><form @submit.prevent="billing.put('/admin/facturation', { preserveScroll: true, onSuccess: () => showSettings = false })" class="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4"><label class="text-sm font-semibold lg:col-span-2">Titulaire<input v-model="billing.billing_name" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">Rue<input v-model="billing.billing_street" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">Numéro<input v-model="billing.billing_house_number" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">NPA<input v-model="billing.billing_postal_code" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">Localité<input v-model="billing.billing_city" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /></label><label class="text-sm font-semibold">Pays<select v-model="billing.billing_country" class="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 font-normal"><option>CH</option><option>LI</option></select></label><label class="text-sm font-semibold">Échéance en jours<input v-model="billing.invoice_due_days" type="number" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal" /></label><label class="text-sm font-semibold md:col-span-2">IBAN<input v-model="billing.billing_iban" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-mono font-normal uppercase" /></label><label class="text-sm font-semibold">Préfixe des factures<input v-model="billing.invoice_prefix" class="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 font-normal uppercase" /></label><div class="flex items-end"><button class="w-full rounded-full bg-ink py-3 font-bold text-white">Enregistrer</button></div><p v-if="Object.keys(billing.errors).length" class="text-sm text-red-600 md:col-span-4">{{ Object.values(billing.errors)[0] }}</p></form></div>
 

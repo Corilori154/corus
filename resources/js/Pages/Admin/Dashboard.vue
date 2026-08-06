@@ -193,7 +193,7 @@ function selectCourseImage(event) {
 
             <DiscountRulesPanel v-else-if="activeView === 'discounts'" :rules="discountRules" />
 
-            <InvoicesPanel v-else-if="activeView === 'invoices'" :invoices="invoices" :billing-settings="billingSettings" />
+            <InvoicesPanel v-else-if="activeView === 'invoices'" :invoices="invoices" :enrollments="enrollments" :billing-settings="billingSettings" />
 
             <SeasonsPanel v-else-if="activeView === 'seasons'" :seasons="seasons" />
 

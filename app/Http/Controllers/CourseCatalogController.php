@@ -243,7 +243,7 @@ class CourseCatalogController extends Controller
 
         $statusMessage = $result['status'] === 'waitlist'
             ? ' L’équilibre Lead/Follow serait dépassé : vous avez été placé·e sur liste d’attente et ne serez pas facturé·e avant confirmation.'
-            : " Montant à payer : {$formattedAmount} CHF pour {$remainingLessons} leçons restantes. Facture {$result['invoice']->number} générée.{$discountMessage}{$paymentMessage}";
+            : " Montant à payer : {$formattedAmount} CHF. Facture {$result['invoice']->number} générée.{$discountMessage}{$paymentMessage}";
 
         $message = "Merci {$data['first_name']} ! Votre demande pour {$course->title} a été envoyée.{$statusMessage}{$accountMessage}";
 
