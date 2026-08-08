@@ -78,6 +78,10 @@ class SwissInvoiceTest extends TestCase
             'installment_count' => 1, 'status' => 'pending',
         ]);
         $invoice = app(InvoiceService::class)->createFor($enrollment);
+        $enrollment->invoices()->create([
+            'school_id' => $school->id, 'number' => 'FAC-SUPPLEMENT',
+            'amount' => 49.75, 'issued_at' => now(), 'due_at' => now()->addDays(30),
+        ]);
 
         $this->actingAs($admin)->put('/admin/facturation', [
             'billing_name' => 'École Corus', 'billing_street' => 'Rue du Lac', 'billing_house_number' => '12',
@@ -90,8 +94,20 @@ class SwissInvoiceTest extends TestCase
                 ->component('Admin/Invoices/Show')
                 ->where('invoice.number', $invoice->number)
                 ->where('invoice.balance', 250.25)
+                ->where('invoice.enrollment.amount', 300)
+                ->where('invoice.enrollment.invoices_total', 300)
                 ->where('documentUrl', route('admin.invoices.document', $invoice))
             );
+        $this->actingAs($admin)->put("/admin/factures/{$invoice->id}", [
+            'amount' => 250.25,
+            'issued_at' => '2026-08-08',
+            'due_at' => '2026-09-15',
+        ])->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('invoices', [
+            'id' => $invoice->id,
+            'issued_at' => '2026-08-08',
+            'due_at' => '2026-09-15',
+        ]);
         $this->actingAs($admin)->get("/admin/factures/{$invoice->id}/document")
             ->assertOk()->assertSee($invoice->number)->assertSee('250,25 CHF')->assertSee('qr-bill-swiss-qr-image');
 

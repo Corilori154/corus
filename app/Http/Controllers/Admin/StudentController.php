@@ -95,8 +95,13 @@ class StudentController extends Controller
         $enrollments = $school->enrollments()
             ->where(fn ($query) => $query->where('user_id', $student->id)->orWhere('email', $student->email))
             ->with(['course:id,title,style,level,teacher,location,day,time,start_date,end_date', 'invoice'])
+            ->withSum('invoices', 'amount')
             ->latest()
             ->get();
+        $enrollments->each(fn ($enrollment) => $enrollment->setAttribute(
+            'amount',
+            round((float) $enrollment->invoices_sum_amount, 2)
+        ));
         $accepted = $enrollments->where('status', '!=', 'waitlist');
         $latest = $enrollments->first();
         $minorEnrollment = $enrollments->firstWhere('is_minor', true);
@@ -113,7 +118,7 @@ class StudentController extends Controller
                 'enrollments_count' => $enrollments->count(),
                 'accepted_count' => $accepted->count(),
                 'waitlist_count' => $enrollments->where('status', 'waitlist')->count(),
-                'total_amount' => round((float) $accepted->sum('amount'), 2),
+                'total_amount' => round((float) $enrollments->sum('invoices_sum_amount'), 2),
             ],
             'enrollments' => $enrollments,
             'trialRequests' => $school->trialRequests()->where('email', $student->email)->with('course:id,title,day,time,location')->latest()->get(),

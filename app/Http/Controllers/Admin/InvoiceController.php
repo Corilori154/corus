@@ -93,6 +93,11 @@ class InvoiceController extends Controller
     {
         abort_unless($invoice->school_id === $request->user()->school_id, 404);
         $invoice->load(['school', 'enrollment.course', 'enrollment.invoices.payments', 'payments.recorder:id,name']);
+        $invoice->enrollment->setAttribute(
+            'invoices_total',
+            round((float) $invoice->enrollment->invoices->sum('amount'), 2)
+        );
+        $invoice->enrollment->setAttribute('amount', $invoice->enrollment->invoices_total);
 
         return Inertia::render('Admin/Invoices/Show', [
             'invoice' => $invoice,

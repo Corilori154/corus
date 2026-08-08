@@ -25,7 +25,11 @@ class CourseController extends Controller
     public function index(): Response
     {
         $school = request()->user()->school;
-        $enrollments = $school->enrollments()->with(['course:id,title,day,time', 'user:id,name,email', 'invoice'])->latest()->get();
+        $enrollments = $school->enrollments()
+            ->with(['course:id,title,day,time', 'user:id,name,email', 'invoice'])
+            ->withSum('invoices', 'amount')
+            ->latest()
+            ->get();
         $students = $enrollments->groupBy('email')->map(function ($studentEnrollments) {
             $latest = $studentEnrollments->first();
             $accepted = $studentEnrollments->whereNotIn('status', ['waitlist', 'expired']);
@@ -41,7 +45,7 @@ class CourseController extends Controller
                 'enrollments_count' => $studentEnrollments->count(),
                 'accepted_count' => $accepted->count(),
                 'waitlist_count' => $studentEnrollments->where('status', 'waitlist')->count(),
-                'total_amount' => round((float) $accepted->sum('amount'), 2),
+                'total_amount' => round((float) $studentEnrollments->sum('invoices_sum_amount'), 2),
                 'courses' => $studentEnrollments->pluck('course.title')->filter()->unique()->values(),
                 'last_enrollment_at' => $latest->created_at,
             ];

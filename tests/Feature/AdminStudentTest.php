@@ -20,12 +20,20 @@ class AdminStudentTest extends TestCase
         $admin = User::factory()->create(['school_id' => $school->id, 'is_admin' => true]);
         $student = User::factory()->create(['school_id' => $school->id, 'name' => 'Camille Dupont', 'email' => 'camille@example.ch', 'is_admin' => false]);
         $course = DanceCourse::factory()->for($school)->create(['title' => 'Salsa débutant']);
-        Enrollment::create([
+        $enrollment = Enrollment::create([
             'school_id' => $school->id, 'user_id' => $student->id, 'dance_course_id' => $course->id,
             'first_name' => 'Camille', 'last_name' => 'Dupont', 'email' => $student->email,
             'phone' => '+41 79 123 45 67', 'start_date' => '2026-09-01', 'lessons_count' => 10,
             'base_amount' => 300, 'discount_amount' => 30, 'discount_percentage' => 10,
             'amount' => 270, 'installment_count' => 1, 'installment_amount' => 270, 'status' => 'pending',
+        ]);
+        Invoice::create([
+            'school_id' => $school->id, 'enrollment_id' => $enrollment->id,
+            'number' => 'STUDENT-001', 'amount' => 300, 'issued_at' => now(), 'due_at' => now()->addDays(30),
+        ]);
+        Invoice::create([
+            'school_id' => $school->id, 'enrollment_id' => $enrollment->id,
+            'number' => 'STUDENT-002', 'amount' => 25, 'issued_at' => now(), 'due_at' => now()->addDays(30),
         ]);
 
         $this->actingAs($admin)->get("/admin/eleves/{$student->id}")
@@ -33,8 +41,9 @@ class AdminStudentTest extends TestCase
                 ->component('Admin/Students/Show')
                 ->where('student.name', 'Camille Dupont')
                 ->where('student.phone', '+41 79 123 45 67')
-                ->where('student.total_amount', 270)
+                ->where('student.total_amount', 325)
                 ->has('enrollments', 1)
+                ->where('enrollments.0.invoices_sum_amount', 325)
                 ->where('enrollments.0.course.title', 'Salsa débutant')
             );
     }
