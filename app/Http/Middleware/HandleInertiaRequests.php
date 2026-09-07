@@ -15,6 +15,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
+                'trial_confirmation' => fn () => $request->session()->get('trial_confirmation'),
                 'waitlist' => fn () => $request->session()->get('waitlist'),
             ],
             'auth' => [

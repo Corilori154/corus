@@ -319,7 +319,10 @@ class CourseCatalogTest extends TestCase
             'course_id' => $course->id, 'first_name' => 'Emma', 'last_name' => 'Test',
             'email' => 'emma@example.com', 'phone' => '+41 79 123 45 67',
             'preferred_date' => '2026-09-08', 'message' => 'Je débute.',
-        ])->assertRedirect()->assertSessionHas('success');
+        ])->assertRedirect()->assertSessionHas(
+            'trial_confirmation',
+            'Venez 5 minutes avant le début du cours. Le paiement est dû sur place.',
+        );
 
         $this->assertDatabaseHas('trial_requests', [
             'school_id' => $school->id, 'dance_course_id' => $course->id,

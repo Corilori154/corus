@@ -1,6 +1,7 @@
 <script setup>
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import TrialConfirmationModal from '@/Components/TrialConfirmationModal.vue';
 
 const props = defineProps({ courses: Array, school: Object, paymentPlans: Array });
 const page = usePage();
@@ -12,6 +13,7 @@ const selectedCourse = ref(null);
 const selectedTrial = ref(null);
 const waitlistResult = ref(null);
 const menuOpen = ref(false);
+const trialConfirmationDismissed = ref(false);
 const accountUrl = computed(() => {
     const user = page.props.auth?.user;
     if (!user) return `/ecole/${props.school.slug}/connexion`;
@@ -172,6 +174,11 @@ function submit() {
     <Head title="Cours de danse" />
 
     <div class="min-h-screen overflow-hidden bg-[#fbfaf6]">
+        <TrialConfirmationModal
+            v-if="page.props.flash?.trial_confirmation && !trialConfirmationDismissed"
+            :message="page.props.flash.trial_confirmation"
+            @close="trialConfirmationDismissed = true"
+        />
         <div class="pointer-events-none absolute -right-32 top-28 h-80 w-80 rounded-full bg-[#f4d9d8]/50 blur-3xl"></div>
 
         <header class="relative z-20 border-b border-black/5 bg-[#fbfaf6]/90 backdrop-blur-xl">

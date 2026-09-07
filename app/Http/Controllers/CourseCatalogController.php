@@ -352,7 +352,7 @@ class CourseCatalogController extends Controller
             'trial_payment_on_site' => ! $course->trial_is_free && $course->trial_payment_on_site,
         ]);
 
-        return back()->with('success', "Votre demande de cours d’essai pour {$course->title} a bien été envoyée. L’école vous contactera pour la confirmer.");
+        return back()->with('trial_confirmation', 'Venez 5 minutes avant le début du cours. Le paiement est dû sur place.');
     }
 
     private function multiCoursePricing(School $school, DanceCourse $course, string $email, float $baseAmount, bool $lock = false): array

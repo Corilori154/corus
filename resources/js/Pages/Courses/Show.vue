@@ -1,9 +1,12 @@
 <script setup>
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import TrialConfirmationModal from '@/Components/TrialConfirmationModal.vue';
 
 const props = defineProps({ school: Object, course: Object, pricingCategories: Array, paymentPlans: Array });
+const page = usePage();
 const modal = ref(null);
+const trialConfirmationDismissed = ref(false);
 const enrollment = useForm({ course_id: props.course.id, first_name: '', last_name: '', email: '', phone: '', is_minor: false, legal_guardian_first_name: '', legal_guardian_last_name: '', dance_role: '', start_date: props.course.start_date, pricing_category_id: '', payment_plan_id: '', comment: '', terms_accepted: false });
 const trial = useForm({ course_id: props.course.id, first_name: '', last_name: '', email: '', phone: '', dance_role: '', preferred_date: props.course.lessons[0]?.lesson_date || '', message: '' });
 const remainingLessons = computed(() => props.course.lessons.filter(item => item.lesson_date >= enrollment.start_date).length);
@@ -61,8 +64,17 @@ const formatDate = date => new Date(`${date}T12:00:00`).toLocaleDateString('fr-F
 <template>
     <Head :title="course.title" />
     <div class="min-h-screen bg-[#fbfaf6]">
+        <TrialConfirmationModal
+            v-if="page.props.flash?.trial_confirmation && !trialConfirmationDismissed"
+            :message="page.props.flash.trial_confirmation"
+            @close="trialConfirmationDismissed = true"
+        />
         <header class="border-b border-black/5 bg-white/90 backdrop-blur-xl"><nav class="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8"><a :href="`/ecole/${school.slug}`" class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-ink text-white">♪</span><span class="font-serif text-2xl font-semibold">{{ school.name }}<span class="text-coral">.</span></span></a><a :href="`/ecole/${school.slug}`" class="rounded-full border border-black/10 px-4 py-2 text-sm font-bold hover:border-coral">← Tous les cours</a></nav></header>
         <main class="mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-16">
+            <div v-if="page.props.flash?.success" class="mb-8 flex items-center gap-3 rounded-2xl bg-[#e3f2e9] px-5 py-4 text-sm font-semibold text-[#27623f]">
+                <span aria-hidden="true">✓</span>
+                <span>{{ page.props.flash.success }}</span>
+            </div>
             <div class="grid gap-10 lg:grid-cols-[1.05fr_.95fr]">
                 <div><div class="relative overflow-hidden rounded-[2rem]"><img :src="course.image" :alt="course.title" class="h-[420px] w-full object-cover sm:h-[560px]" /><span class="absolute left-5 top-5 rounded-full bg-white/90 px-4 py-2 text-xs font-bold">{{ course.level }}</span><span v-if="course.couple_mode" class="absolute right-5 top-5 rounded-full bg-purple-600 px-4 py-2 text-xs font-bold text-white">Lead / Follow</span></div></div>
                 <div class="lg:py-5"><p class="text-xs font-bold uppercase tracking-[.2em] text-coral">{{ course.style }}</p><h1 class="mt-3 font-serif text-5xl leading-tight sm:text-6xl">{{ course.title }}</h1><p class="mt-5 text-lg leading-relaxed text-black/55">{{ course.description }}</p><div class="mt-7 grid gap-3 sm:grid-cols-2"><div class="rounded-2xl bg-white p-4"><p class="text-xs text-black/40">Professeur</p><strong class="mt-1 block">{{ course.teacher }}</strong></div><div class="rounded-2xl bg-white p-4"><p class="text-xs text-black/40">Lieu</p><strong class="mt-1 block">{{ course.location }}</strong></div><div class="rounded-2xl bg-white p-4"><p class="text-xs text-black/40">Horaire</p><strong class="mt-1 block">{{ course.day }} · {{ course.time }}</strong></div><div class="rounded-2xl bg-white p-4"><p class="text-xs text-black/40">Session</p><strong class="mt-1 block">{{ formatDate(course.start_date) }} — {{ formatDate(course.end_date) }}</strong></div></div><div class="mt-6 rounded-2xl bg-ink p-5 text-white"><div class="flex items-end justify-between"><div><p class="text-xs text-white/45">Prix de la session</p><strong class="font-serif text-4xl">{{ Number(course.session_price).toLocaleString('fr-FR') }} CHF</strong></div><p class="text-right text-xs text-white/50">{{ course.places }} places restantes</p></div></div><div class="mt-6 grid gap-3" :class="course.trial_enabled ? 'sm:grid-cols-2' : 'sm:grid-cols-1'"><button v-if="course.trial_enabled" :disabled="!course.lessons.length" @click="modal = 'trial'" class="rounded-full border border-ink px-6 py-4 font-bold transition hover:bg-ink hover:text-white disabled:opacity-30">{{ course.trial_is_free ? 'Essai gratuit' : 'Essai · ' + Number(course.trial_price).toLocaleString('fr-CH', { minimumFractionDigits: 2 }) + ' CHF' }}</button><button :disabled="course.places === 0" @click="modal = 'enrollment'" class="rounded-full bg-ink px-6 py-4 font-bold text-white transition hover:bg-coral disabled:opacity-30">S’inscrire</button></div></div>
